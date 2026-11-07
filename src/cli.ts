@@ -110,7 +110,11 @@ function genFiles(file: string, opts: OutOpts) {
     realm: opts.realm ?? ctx.config.realm,
     source: basename(file),
     withSession: opts.withSession,
+    bundle: ctx.bundle,
   });
+  if (!written.some((p) => p.endsWith('.html'))) {
+    process.stderr.write(`note: flow viewer not built, so no <journey>.html (run npm run build)${'\n'}`);
+  }
   for (const p of written) process.stdout.write(`wrote ${p}\n`);
   return ctx;
 }
@@ -163,11 +167,13 @@ export function main(argv = process.argv): void {
       }
     });
 
-  withOut(withCommon(program.command('gen').description('write <out>/<journey>/<journey>.sh and .runbook.md'))).action(
-    (file: string, opts: OutOpts) => {
-      genFiles(file, opts);
-    },
-  );
+  withOut(
+    withCommon(
+      program.command('gen').description('write <out>/<journey>/<journey>.sh, .runbook.md and .html (flow viewer)'),
+    ),
+  ).action((file: string, opts: OutOpts) => {
+    genFiles(file, opts);
+  });
 
   withMinCoverage(
     withOut(withCommon(program.command('report').description('write index.html, report.json and report.md'))),

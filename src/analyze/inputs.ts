@@ -55,7 +55,8 @@ export function assignInputs(plan: Plan, config: BkConfig): InputVar[] {
           };
           if (SECRET.test(name) || cb.type === 'PasswordCallback' || cb.type === 'ValidatedCreatePasswordCallback') {
             v.secret = true;
-            if (configured === undefined && input.kind === 'string') v.defaultValue = 'CHANGE_ME';
+            // Secrets are never written into generated files, even from bk.config.json: pass them as env vars.
+            if (input.kind === 'string') v.defaultValue = 'CHANGE_ME';
           }
           vars.set(name, v);
         }

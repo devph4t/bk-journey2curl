@@ -137,7 +137,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"
@@ -269,7 +270,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"
@@ -456,7 +458,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"
@@ -611,7 +614,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"
@@ -765,7 +769,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"
@@ -949,7 +954,8 @@ post() {
   local out
   out="$(curl -sS -X POST "$URL" \\
     -H 'Content-Type: application/json' \\
-    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -H 'Accept-API-Version: resource=2.1, protocol=1.0' \\
+    -H 'X-Requested-With: ForgeRock' \\
     -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
   log "<<< $out"
   printf '%s' "$out"

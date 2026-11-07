@@ -97,13 +97,14 @@ describe('runbook', () => {
     const rb = generateRunbook(planner.plan('Login'), opts);
     expect(rb).toContain('authIndexValue=Login');
     expect(rb).toContain('"value":"<IN_USERNAME>"');
-    expect(rb).toContain('**Expected next:** `NameCallback,PasswordCallback`');
+    expect(rb).toContain('--arg v1 "$IN_USERNAME"');
+    expect(rb).toContain('**Expected next:** NameCallback,PasswordCallback');
     expect(rb).toMatch(/optional step 2/);
   });
 
   it('zero page login sends headers on the start call', () => {
     const rb = generateRunbook(planner.plan('Agent'), opts);
-    expect(rb).toContain('-H "X-OpenAM-Username: <IN_USERNAME>"');
+    expect(rb).toContain('-H "X-OpenAM-Username: $IN_USERNAME"');
   });
 });
 

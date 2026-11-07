@@ -50,3 +50,17 @@
 [2026-11-08 02:16:49 UTC+7] Plan 003 ticked + results, status Done (M2); CLAUDE.md commands updated; committing M2
 [2026-11-08 02:16:49 UTC+7] Committed M2 as 7b59bd9
 [2026-11-08 02:17:01 UTC+7] Corrected plan 003: runbook is built in TS (no runbook.md.eta). Stopping after M2 for user review; open question for M3: viewer default Simple vs Engineer view; M4 needs jq installed
+[2026-11-08 02:20:40 UTC+7] User reported running 'npm run build && node dist/cli.js all ... --with-session Login' (message cut off before the result); reproduced locally: build OK, 26 journey files + 3 report files written, '13 journeys: 7 full, 5 partial, 1 manual', exit 0; asked user for their output
+[2026-11-08 02:27:10 UTC+7] User request: generate curl one request per step (copy one by one) like their Postman collection, and a web page like the P1AIC canvas with a curl box on each step (screenshot with CURL1/CURL2 boxes); attached DemoSignup.postman_collection (3).json and their Thai index.html explainer
+[2026-11-08 02:27:10 UTC+7] Read the Postman collection: page callbacks carry _id that must be sent back; headers resource=2.1 + X-Requested-With: ForgeRock; error ack -> 401 Login failure; session check via serverinfo cookieName + getSessionInfo
+[2026-11-08 02:27:10 UTC+7] Created plan _agent/plan/004-20261108-022642.md (copyable jq|curl step blocks, header update, runbook blocks, Preact+Vite single-file viewer with curl boxes, inner journey drill-down, default Engineer view)
+[2026-11-08 02:38:43 UTC+7] Installed viewer devDeps: preact@10.29.8, vite@6.4.5, vite-plugin-singlefile@2.3.4, @preact/preset-vite@2.10.6 (pinned majors; preact 11 is newest)
+[2026-11-08 02:38:43 UTC+7] Added ViewerData/CurlSet types to src/model/types.ts; wrote src/generate/curl.ts (copyable jq|curl blocks, resource=2.1 + X-Requested-With headers, example body with _id), rewrote runbook.ts on top of it
+[2026-11-08 02:38:43 UTC+7] Updated .sh template headers to resource=2.1 + X-Requested-With: ForgeRock (first sed/node edits failed on quoting, fixed with Edit tool)
+[2026-11-08 02:38:43 UTC+7] Wrote src/generate/viewer-data.ts, viewer.ts, viewer/ app (layout.ts, Canvas.tsx, StepPanel.tsx, App.tsx, CodeBlock.tsx, copy.ts, styles.css, main.tsx, vite config); write.ts writes <journey>.html; build = vite build + tsup
+[2026-11-08 02:38:43 UTC+7] Fixed: escaping slips in cli.ts/viewer-data.ts from heredoc edits; data placeholder was replaced inside inlined JS instead of the data tag (now replaces whole tag)
+[2026-11-08 02:38:43 UTC+7] Headless Edge screenshots in scratchpad: fit-to-width unreadable -> open at 75-100% and scroll to selected step; curl box preview now 'POST IN_...' summary; added #step-N deep links; inner tree nodes get room for the Open button
+[2026-11-08 02:38:43 UTC+7] Tests: new test/viewer.test.ts; found configured secret leaking into setup block -> secrets always CHANGE_ME, setup uses ${IN_X:-default}; reviewed snapshot diffs (only header change in .sh, new runbook layout) and updated 16 snapshots
+[2026-11-08 02:38:43 UTC+7] Lint: fixed viewer a11y (keyboard-operable cards via role=button + Enter/Space, fieldset for button groups); biome overrides for CSS specificity and viewer/index.html
+[2026-11-08 02:38:43 UTC+7] Verification: biome clean, typecheck (src + viewer) clean, vitest 85/85, build OK, all on sample writes 13 viewer pages
+[2026-11-08 02:38:43 UTC+7] Plan 004 ticked + results, status Done; CLAUDE.md updated; committing

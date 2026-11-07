@@ -126,6 +126,14 @@ export JSON (+ bk.config.json)
 - Branch analysis at server-decided nodes: every branch has 1 step → `variant` step; the chosen branch has 0 steps → the other branch's steps become `optional`; otherwise a warning to use `--choose`. Pinning a server node with `--choose` turns this off and adds an info warning.
 - Generated bash: one `step_N` function per step. `SUSPENDED_ID` resumes after the first suspend step. `--with-session` adds `step_sN` functions and `run_session`.
 
+### Step-by-step curl and the flow viewer (plan 004)
+
+- `src/generate/curl.ts` builds the copyable blocks used by the runbook and the viewer. Setup exports `TENANT`, `URL` and `IN_*` (env values win). Start sets `$RESP`. Each step does `jq <fill inputs> <<<"$RESP" | curl ... -d @-`, which keeps the page callbacks' `_id` and the server values.
+- Headers verified on the real tenant (from the user's Postman collection): `Accept-API-Version: resource=2.1, protocol=1.0` and `X-Requested-With: ForgeRock`.
+- Secret inputs (passwords, answers, codes) always default to `CHANGE_ME`, even when set in bk.config.json.
+- `viewer/` (Preact + Vite + vite-plugin-singlefile) draws the P1AIC canvas from the export x/y. It shows a curl box with a Copy button under each step node, a side panel with blocks, body and expected next, inner journeys as tabs, Simple/Engineer modes, and `#step-N` deep links. `src/generate/viewer-data.ts` builds the data and `injectViewerData` replaces the whole `bkj2c-data` script tag.
+- Check the viewer visually with headless Edge: `msedge --headless=new --screenshot=<png> --window-size=1600,1000 --virtual-time-budget=4000 "file:///.../out/<J>/<J>.html#step-2"`.
+
 ### Layout (planned)
 
 ```text
@@ -154,8 +162,9 @@ Package manager is **npm** (pnpm is not installed). npm 11 blocks install script
 
 ```bash
 npm install
-npm run build          # tsup -> dist/cli.js, dist/index.js; copies src/templates -> dist/templates
-npm run typecheck      # tsc --noEmit
+npm run build          # vite build (viewer -> viewer/dist/index.html) then tsup -> dist/; copies templates + viewer.html to dist/templates
+npm run dev:viewer     # vite dev server for the viewer UI (no data unless a generated page is used)
+npm run typecheck      # tsc --noEmit for src/test and for viewer/ (its own tsconfig, Preact JSX)
 npm test               # vitest run (unit + snapshot + bash -n on every generated script)
 npm run test:update    # accept snapshot changes (review the diff first)
 npm run lint           # biome check .

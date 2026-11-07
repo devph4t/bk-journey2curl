@@ -180,3 +180,91 @@ export interface Plan {
   /** Whether a path to the target was found at all. */
   reachable: boolean;
 }
+
+// ---- Curl blocks (runbook + viewer) ---------------------------------------------------------------
+
+/** A shell snippet that can be copied and run on its own, in order, in one terminal. */
+export interface CurlBlock {
+  label: string;
+  code: string;
+}
+
+export interface StepCurl {
+  index: number;
+  /** One block per variant, otherwise one block. */
+  run: CurlBlock[];
+  /** Example request body (Postman style) for reading; values shown as <IN_X>. */
+  body?: string;
+  /** What the server should send next, in plain words. */
+  expect: string;
+}
+
+export interface CurlSet {
+  setup: CurlBlock;
+  start: CurlBlock;
+  steps: StepCurl[];
+  finish: CurlBlock;
+  /** Check the session created by the journey (serverinfo cookie name + getSessionInfo). */
+  session: CurlBlock;
+  /** Prints the callback types of the last response (to pick a variant). */
+  types: string;
+}
+
+// ---- Flow viewer data ----------------------------------------------------------------------------
+
+export interface ViewerNode {
+  id: NodeId;
+  name: string;
+  type: string;
+  x: number;
+  y: number;
+  outcomes: string[];
+  children?: Array<{ name: string; type: string }>;
+  innerJourney?: string;
+  onPath: boolean;
+  /** Step numbers attached to this node (inner journey nodes list their spliced steps). */
+  steps: number[];
+}
+
+export interface ViewerEdge {
+  from: NodeId;
+  to: NodeId;
+  outcome: string;
+  onPath: boolean;
+}
+
+export interface ViewerCanvas {
+  journey: string;
+  entry: NodeId;
+  nodes: ViewerNode[];
+  edges: ViewerEdge[];
+  staticNodes: Record<string, { x: number; y: number }>;
+}
+
+export interface ViewerStep {
+  index: number;
+  kind: StepKind;
+  journey: string;
+  nodeId: NodeId;
+  nodeName: string;
+  plainText: string;
+  condition?: string;
+  notes?: string[];
+  callbacks: string;
+  variants?: Array<{ label: string; callbacks: string; solver?: string; nodeId?: NodeId; plainText: string }>;
+  curl: StepCurl;
+}
+
+export interface ViewerData {
+  journey: string;
+  target: Plan['target'];
+  coverage: Coverage;
+  coverageNotes: string[];
+  warnings: string[];
+  source?: string;
+  /** Top journey first, then every inner journey on the path. */
+  canvases: ViewerCanvas[];
+  steps: ViewerStep[];
+  curl: Omit<CurlSet, 'steps'>;
+  inputs: Array<{ variable: string; defaultValue: string; secret: boolean; description: string }>;
+}

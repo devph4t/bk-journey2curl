@@ -1,10 +1,11 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Planner } from '../analyze/planner.js';
-import type { ExportMeta, Plan } from '../model/types.js';
+import type { ExportBundle, ExportMeta, Plan } from '../model/types.js';
 import { buildReport, type ReportData, renderReportHtml, renderReportMd } from './report.js';
 import { generateRunbook } from './runbook.js';
 import { generateSh } from './sh.js';
+import { generateViewer } from './viewer.js';
 
 export interface WriteOptions {
   out: string;
@@ -13,9 +14,11 @@ export interface WriteOptions {
   /** Export file name for headers. */
   source?: string;
   withSession?: string;
+  /** Needed for the flow viewer (journey graphs); without it no .html is written. */
+  bundle?: ExportBundle;
 }
 
-/** Write `<out>/<journey>/<journey>.sh` and `.runbook.md` for each plan; returns the written paths. */
+/** Write `<journey>.sh`, `.runbook.md` and (when the viewer is built) `.html` for each plan; returns the paths. */
 export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOptions): string[] {
   const written: string[] = [];
   const sessionPlan = opts.withSession ? planner.plan(opts.withSession) : undefined;
@@ -40,6 +43,14 @@ export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOp
     const rbPath = join(dir, `${plan.journey}.runbook.md`);
     writeFileSync(rbPath, rb);
     written.push(shPath, rbPath);
+    if (opts.bundle) {
+      const html = generateViewer(plan, opts.bundle, { tenant: opts.tenant, realm: opts.realm, source: opts.source });
+      if (html) {
+        const htmlPath = join(dir, `${plan.journey}.html`);
+        writeFileSync(htmlPath, html);
+        written.push(htmlPath);
+      }
+    }
   }
   return written;
 }

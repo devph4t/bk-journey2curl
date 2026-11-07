@@ -1,4 +1,4 @@
-import { cpSync } from 'node:fs';
+import { cpSync, existsSync } from 'node:fs';
 import { defineConfig } from 'tsup';
 
 export default defineConfig({
@@ -12,5 +12,7 @@ export default defineConfig({
   async onSuccess() {
     // Templates are read at run time from dist/templates.
     cpSync('src/templates', 'dist/templates', { recursive: true });
+    // The flow viewer page, built by `vite build -c viewer/vite.config.ts`.
+    if (existsSync('viewer/dist/index.html')) cpSync('viewer/dist/index.html', 'dist/templates/viewer.html');
   },
 });

@@ -7,7 +7,16 @@
   },
   "files": {
     "ignoreUnknown": true,
-    "includes": ["**", "!**/_agent", "!**/test/fixtures", "!**/out", "!**/dist", "!**/__snapshots__", "!**/*.md"]
+    "includes": [
+      "**",
+      "!**/_agent",
+      "!**/test/fixtures",
+      "!**/out",
+      "!**/dist",
+      "!**/__snapshots__",
+      "!**/*.md",
+      "!**/viewer/index.html"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -41,6 +50,16 @@
         "rules": {
           "suspicious": {
             "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": ["viewer/src/**/*.css"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noDescendingSpecificity": "off"
           }
         }
       }
