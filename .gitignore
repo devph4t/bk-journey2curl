@@ -7,8 +7,9 @@ dist/
 viewer/dist/
 *.tsbuildinfo
 
-# Generated journey output
+# Generated output (bkj2c gen/report/all; -o out is the default)
 out/
+/output/
 
 # Test / coverage
 coverage/
@@ -31,8 +32,8 @@ bk.config.json
 /exports/
 /*Export*.json
 
-# Agent session marker (plans and logs are kept)
-_agent/logs/.current_session
+# Claude plans and activity logs: kept on disk, not in git
+_agent/
 
 # Logs
 npm-debug.log*

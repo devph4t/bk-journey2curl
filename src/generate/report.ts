@@ -1,6 +1,7 @@
 import { signature } from '../analyze/catalog/callbacks.js';
 import type { Coverage, ExportMeta, Plan } from '../model/types.js';
 import { render } from '../templates/index.js';
+import { journeyFiles } from './paths.js';
 
 export interface ReportRow {
   journey: string;
@@ -122,11 +123,7 @@ export function buildReport(
       warnings: p.warnings,
       unreachable: p.unreachable,
       unknownTypes: p.unknownTypes,
-      files: {
-        sh: `${p.journey}/${p.journey}.sh`,
-        runbook: `${p.journey}/${p.journey}.runbook.md`,
-        viewer: `${p.journey}/${p.journey}.html`,
-      },
+      files: (({ dir: _d, ...f }) => f)(journeyFiles(p.journey)),
     })),
   };
 }

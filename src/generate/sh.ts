@@ -1,6 +1,7 @@
 import { signature } from '../analyze/catalog/callbacks.js';
 import type { CallbackSpec, Plan, Step, Variant } from '../model/types.js';
 import { render } from '../templates/index.js';
+import { safeFileName } from './paths.js';
 
 export interface ShOptions {
   tenant?: string;
@@ -99,7 +100,7 @@ ${fns}
 
 run_session() {
   local main_url="$URL"
-  URL="$(auth_url ${shq(session.journey)})"
+  URL="$(auth_url ${shq(encodeURIComponent(session.journey))})"
   RESP="$(post '{}')"
 ${calls || '  :'}
   if ! done_ok; then say "✘ session journey ${dq(session.journey)} did not succeed"; finish; fi
@@ -148,7 +149,8 @@ export function generateSh(plan: Plan, opts: ShOptions = {}): string {
   const text = render('script.sh.eta', {
     journey: plan.journey,
     journeyQuoted: shq(plan.journey),
-    fileName: `${plan.journey}.sh`,
+    journeyParam: shq(encodeURIComponent(plan.journey)),
+    fileName: `${safeFileName(plan.journey)}.sh`,
     source: opts.source ?? 'a journey export',
     target: plan.target,
     coverage: plan.coverage.toUpperCase(),

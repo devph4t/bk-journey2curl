@@ -75,7 +75,8 @@ These formats match the shared toolbox at `D:\source_code\hobby\tools\_scripts` 
 ### 3. Git
 
 - Default branch: `main`.
-- Claude may commit on its own (user approval given 2026-11-08). Commit at sensible points, such as a finished plan step or a working change, with clear messages. `_agent/` (plan + log updates) is committed together with the code.
+- Claude may commit on its own (user approval given 2026-11-08). Commit at sensible points, such as a finished plan step or a working change, with clear messages.
+- `_agent/` (plans and logs) and generated output (`out/`, `dist/`, `viewer/dist/`) are git-ignored (user request 2026-11-08). Keep writing plans and logs there; they stay on disk only.
 - Do not push, force-push, rewrite history or change branches without asking.
 
 ## Project
@@ -114,14 +115,13 @@ export JSON (+ bk.config.json)
 - Fixed static node ids: Success `70e691a5-1e33-4ac3-a356-e7b6d60d92e0`, Failure `e301438c-0bd0-429c-ab0c-66126501069a`.
 - Supported formats: Admin UI 1.1 (`trees` map), Frodo (single or multi; `innernodes`), single bundle (`tree` + `nodes`), raw tree (`entryNodeId` at the top level).
 - Scripts in exports are JSON strings inside strings. Decode with repeated `JSON.parse`; also handle Frodo line arrays and base64.
-- Planner: BFS from `entryNodeId`, trying preferred outcomes first (`true`, `TRUE`, `success`, `CREATED`, `PATCHED`, `accept`, `valid`, `pass`, `outcome`, `next`). `--choose "<node>=<outcome>"` pins a branch. Inner journeys are planned recursively, with a 5-level recursion guard.
+- Planner: cheapest path (Dijkstra) from `entryNodeId`, preferring positive outcomes (`true`, `success`, `CREATED`, `PATCHED`, `accept`, `valid`, `pass`, `outcome`, `next` ...) over retry/failure ones. `--choose "<node>=<outcome>"` pins a branch. Inner journeys are planned recursively, with a 5-level recursion guard.
 - Step kinds: `submit | poll | variant | optional | suspend | redirect | manual`.
 - Solvers are jq expressions (`env`, `math-sum`, `echo-text`, `echo-hidden`, optional `totp`). Variants are matched by callback-type signature.
 - Secrets: inputs only through `IN_*` env vars. Nothing is written to disk except the cookie jar, which is deleted on exit.
 
-### Implementation notes (M1)
+### Implementation notes
 
-- Extra modules beyond the design: `src/config.ts`, `src/analyze/inputs.ts` (IN_* naming), `src/analyze/catalog/{types,callbacks,script-scan}.ts`, `src/format/plan-text.ts`, `src/templates/index.ts` (eta loader).
 - Planner = Dijkstra, not plain BFS. Nodes with `branching: 'preferred'` penalise negative outcomes. `branching: 'server'` nodes have no preference. Entering an interactive node costs +3, so data-driven branches avoid extra pages.
 - Branch analysis at server-decided nodes: every branch has 1 step → `variant` step; the chosen branch has 0 steps → the other branch's steps become `optional`; otherwise a warning to use `--choose`. Pinning a server node with `--choose` turns this off and adds an info warning.
 - Generated bash: one `step_N` function per step. `SUSPENDED_ID` resumes after the first suspend step. `--with-session` adds `step_sN` functions and `run_session`.
@@ -134,25 +134,31 @@ export JSON (+ bk.config.json)
 - `viewer/` (Preact + Vite + vite-plugin-singlefile) draws the P1AIC canvas from the export x/y. It shows a curl box with a Copy button under each step node, a side panel with blocks, body and expected next, inner journeys as tabs, Simple/Engineer modes, and `#step-N` deep links. `src/generate/viewer-data.ts` builds the data and `injectViewerData` replaces the whole `bkj2c-data` script tag.
 - Check the viewer visually with headless Edge: `msedge --headless=new --screenshot=<png> --window-size=1600,1000 --virtual-time-budget=4000 "file:///.../out/<J>/<J>.html#step-2"`.
 
-### Layout (planned)
+### Layout
 
 ```text
 src/cli.ts                      commands: plan | paths | gen | report | all
+src/index.ts                    library exports
+src/config.ts                   bk.config.json (zod)
 src/load/                       detect.ts, loader.ts, script-decode.ts
-src/model/                      types.ts (shared with viewer), schema.ts (zod)
-src/analyze/catalog/            index.ts, platform.ts, flow.ts, mfa.ts, scripted.ts
-src/analyze/                    planner.ts, variants.ts, solvers.ts, plain-text.ts, coverage.ts
-src/generate/                   sh.ts, runbook.ts, viewer.ts, report.ts
-src/templates/                  eta templates (script.sh.eta, runbook.md.eta, report.html.eta)
-viewer/                         Preact + Vite single-file app (Canvas, Overlay, StepPanel)
-test/                           vitest unit + snapshot tests, fixtures/, mock-am/server.ts
+src/model/                      types.ts (shared with viewer: plan, curl blocks, viewer data), schema.ts (zod)
+src/analyze/catalog/            index.ts (registry, Page Node), platform.ts, flow.ts, mfa.ts, scripted.ts,
+                                script-scan.ts (tokenizer), callbacks.ts (input layouts), types.ts
+src/analyze/                    planner.ts (path + variant/optional analysis), solvers.ts, inputs.ts (IN_* names),
+                                plain-text.ts, coverage.ts
+src/format/plan-text.ts         text for the plan command
+src/generate/                   sh.ts, curl.ts (copyable blocks), runbook.ts, report.ts, viewer-data.ts, viewer.ts,
+                                paths.ts (safe file names), write.ts (file writing)
+src/templates/                  script.sh.eta, report.html.eta, index.ts (eta loader)
+viewer/                         Preact app: App, Canvas, StepPanel, CodeBlock, layout.ts, styles.css -> one HTML file
+test/                           vitest unit + snapshot tests, fixtures/all-journeys-alpha.json
 out/                            generated output (git-ignored)
-_agent/plan/, _agent/logs/      Claude's plans and activity logs
+_agent/plan/, _agent/logs/      Claude's plans and activity logs (git-ignored)
 ```
 
 ### Stack
 
-Node 20 LTS, TypeScript 5 (strict), commander, zod, eta, Preact, Vite + vite-plugin-singlefile, elkjs (layout fallback only), tsup (CLI bundle), vitest (+ snapshots), Biome (lint + format). Generated scripts need bash 4+, curl and jq 1.6+. Optional: `@rockcarver/frodo-lib`, `otplib`.
+Node 20+ (developed on Node 26), TypeScript 5.9 (strict), commander 13, zod 4, eta 3, Preact 10, Vite 6 + vite-plugin-singlefile, tsup 8, vitest 3 (+ snapshots), Biome 2. The design's elkjs layout fallback is replaced by a small column layout in `viewer-data.ts` (no extra dependency). Generated scripts need bash 4+, curl and jq 1.6+. Optional: `@rockcarver/frodo-lib`, `otplib`.
 
 Keep the dependency list short. Ask before adding a library that is not listed here.
 
@@ -181,18 +187,20 @@ File writing lives in `src/generate/write.ts` (`writeJourneyFiles`, `writeReport
 
 Before committing: `npm run lint && npm run typecheck && npm test`.
 
-`jq` is not installed on this machine, so generated scripts can be syntax-checked (`bash -n`) but not run yet. Running them end to end is M4.
+`jq` is not installed on this machine, so generated scripts and curl blocks can be syntax-checked (`bash -n`) but not run yet. Running them end to end is M4.
 
 ### Milestones
 
-1. **M1**: loader, catalog, planner, `plan` command, `.sh` generator, tested on the sample export.
-2. **M2**: runbook and report (HTML, JSON, Markdown).
-3. **M3**: viewer HTML (canvas, overlay, step panel).
-4. **M4**: mock AM server and end-to-end tests; optional Frodo and TOTP.
+1. **M1** (done): loader, catalog, planner, `plan` command, `.sh` generator, tested on the sample export.
+2. **M2** (done): runbook and report (HTML, JSON, Markdown).
+3. **M3** (done): flow viewer with a curl box per step, copyable step blocks.
+4. **M4** (next): mock AM server and end-to-end tests (needs jq); optional Frodo and TOTP.
 
-Open questions in the design (KBA question count, default viewer mode): ask the user, don't guess.
+Open questions: KBA question count is still open (default 1, `kbaCount`). The viewer opens in Engineer view (curl visible); Simple view is a toggle.
 
 ## Conventions
+
+- License: MIT (`LICENSE`). User-facing usage docs live in `README.md`; keep it in step with CLI changes.
 
 - TypeScript strict, ES modules, no `any` without a comment explaining why.
 - Each node-type handler is small and has a unit test. Use snapshot tests for generator output.

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { Planner } from '../analyze/planner.js';
 import type { ExportBundle, ExportMeta, Plan } from '../model/types.js';
+import { journeyFiles } from './paths.js';
 import { buildReport, type ReportData, renderReportHtml, renderReportMd } from './report.js';
 import { generateRunbook } from './runbook.js';
 import { generateSh } from './sh.js';
@@ -23,7 +24,8 @@ export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOp
   const written: string[] = [];
   const sessionPlan = opts.withSession ? planner.plan(opts.withSession) : undefined;
   for (const plan of plans) {
-    const dir = join(opts.out, plan.journey);
+    const files = journeyFiles(plan.journey);
+    const dir = join(opts.out, files.dir);
     mkdirSync(dir, { recursive: true });
     const useSession = plan.needsSession && plan.journey !== opts.withSession ? sessionPlan : undefined;
     const sh = generateSh(plan, {
@@ -32,7 +34,7 @@ export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOp
       source: opts.source,
       sessionPlan: useSession,
     });
-    const shPath = join(dir, `${plan.journey}.sh`);
+    const shPath = join(opts.out, files.sh);
     writeFileSync(shPath, sh, { mode: 0o755 });
     const rb = generateRunbook(plan, {
       tenant: opts.tenant,
@@ -40,13 +42,13 @@ export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOp
       source: opts.source,
       sessionJourney: useSession?.journey,
     });
-    const rbPath = join(dir, `${plan.journey}.runbook.md`);
+    const rbPath = join(opts.out, files.runbook);
     writeFileSync(rbPath, rb);
     written.push(shPath, rbPath);
     if (opts.bundle) {
       const html = generateViewer(plan, opts.bundle, { tenant: opts.tenant, realm: opts.realm, source: opts.source });
       if (html) {
-        const htmlPath = join(dir, `${plan.journey}.html`);
+        const htmlPath = join(opts.out, files.viewer);
         writeFileSync(htmlPath, html);
         written.push(htmlPath);
       }
@@ -63,7 +65,7 @@ export function writeReport(
 ): { report: ReportData; written: string[] } {
   mkdirSync(opts.out, { recursive: true });
   const report = buildReport(plans, meta, opts.source);
-  const viewers = plans.length > 0 && plans.every((p) => existsSync(join(opts.out, p.journey, `${p.journey}.html`)));
+  const viewers = plans.length > 0 && plans.every((p) => existsSync(join(opts.out, journeyFiles(p.journey).viewer)));
   const files: Array<[string, string]> = [
     ['report.json', `${JSON.stringify(report, null, 2)}\n`],
     ['report.md', renderReportMd(report)],

@@ -16,6 +16,7 @@ set -euo pipefail
 <% for (const v of it.inputs) { %>: "${<%~ v.variable %>:=<%~ v.value %>}"   # <%~ v.description %>
 <% } %>
 JOURNEY=<%~ it.journeyQuoted %>
+JOURNEY_PARAM=<%~ it.journeyParam %>   # URL-encoded
 TARGET=<%~ it.target %>
 
 for cmd in curl jq; do
@@ -33,7 +34,7 @@ auth_url() { echo "${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=
 
 COOKIES="$(mktemp)"
 trap 'rm -f "$COOKIES"' EXIT
-URL="$(auth_url "$JOURNEY")"
+URL="$(auth_url "$JOURNEY_PARAM")"
 RESP=''
 
 # post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.

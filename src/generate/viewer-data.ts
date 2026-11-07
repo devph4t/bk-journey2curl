@@ -69,6 +69,31 @@ function canvasFor(bundle: ExportBundle, plan: Plan, name: string): ViewerCanvas
     }),
   );
 
+  // Raw AM trees have no canvas positions: lay the nodes out in columns by distance from the entry node.
+  const needsLayout = nodes.length > 1 && nodes.every((n) => n.x === 0 && n.y === 0);
+  if (needsLayout) {
+    const depth = new Map<string, number>([[journey.entry, 0]]);
+    const queue = [journey.entry];
+    while (queue.length) {
+      const id = queue.shift() as string;
+      for (const to of Object.values(journey.nodes.get(id)?.outcomes ?? {})) {
+        if (journey.nodes.has(to) && !depth.has(to)) {
+          depth.set(to, (depth.get(id) ?? 0) + 1);
+          queue.push(to);
+        }
+      }
+    }
+    const last = Math.max(0, ...depth.values()) + 1;
+    const rows = new Map<number, number>();
+    for (const n of nodes) {
+      const d = depth.get(n.id) ?? last;
+      const row = rows.get(d) ?? 0;
+      rows.set(d, row + 1);
+      n.x = 160 + d * 260;
+      n.y = 60 + row * 190;
+    }
+  }
+
   // Fallback positions when the export has none for Start / Success / Failure.
   const maxX = Math.max(0, ...nodes.map((n) => n.x)) + 300;
   const staticNodes = {

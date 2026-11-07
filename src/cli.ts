@@ -69,6 +69,10 @@ function load(file: string, opts: CommonOpts): Loaded {
   const config = loadConfig(opts.config);
   const bundle = loadExportFile(file);
   for (const w of bundle.warnings) process.stderr.write(`warning: ${w.message}\n`);
+  const session = (opts as { withSession?: string }).withSession;
+  if (session && !bundle.journeys.has(session)) {
+    throw new Error(`--with-session: journey "${session}" is not in the export`);
+  }
   let names = opts.journey?.length ? opts.journey : [...bundle.journeys.keys()];
   for (const n of names) {
     if (!bundle.journeys.has(n)) {

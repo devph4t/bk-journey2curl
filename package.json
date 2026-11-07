@@ -8,7 +8,9 @@
   },
   "main": "dist/index.js",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE",
+    "README.md"
   ],
   "engines": {
     "node": ">=20"
@@ -26,7 +28,7 @@
     "build:viewer": "vite build -c viewer/vite.config.ts",
     "dev:viewer": "vite -c viewer/vite.config.ts"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "dependencies": {
     "commander": "^13.1.0",
@@ -43,5 +45,6 @@
     "vite": "^6.4.5",
     "vite-plugin-singlefile": "^2.3.4",
     "vitest": "^3.2.7"
-  }
+  },
+  "author": "Thanaphat"
 }
