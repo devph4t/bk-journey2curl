@@ -76,7 +76,13 @@ export function stepPlainText(step: Step): string {
   switch (step.kind) {
     case 'variant': {
       const v = step.variants ?? [];
-      return `The system gives you one of ${v.length} quick challenges (${v.map((x) => x.label).join(', ')}) and checks your answer`;
+      if (v.length && v.every((x) => x.solver)) {
+        return `The system gives you one of ${v.length} quick challenges (${v.map((x) => x.label).join(', ')}) and checks your answer`;
+      }
+      const options = v.map((x) =>
+        x.kind === 'suspend' ? 'check your email and click the link' : lc(callbacksPlainText(x.callbacks)),
+      );
+      return cap(`depending on your account, ${options.join(', or ')}`);
     }
     case 'manual':
       return `Do this by hand: ${step.notes?.[0] ?? callbacksPlainText(step.callbacks)}`;

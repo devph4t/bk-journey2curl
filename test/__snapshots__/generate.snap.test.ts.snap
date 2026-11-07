@@ -866,7 +866,7 @@ run_session() {
 
 # ---- steps -------------------------------------------------------------------------------------
 # Step 1 – variant: Attribute Present Decision
-#   The system gives you one of 2 quick challenges (true, false) and checks your answer
+#   Depending on your account, enter your password, or check your email and click the link
 step_1() {
   case "$(types)" in
     'PasswordCallback')   # true: Password

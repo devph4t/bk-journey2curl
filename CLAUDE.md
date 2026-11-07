@@ -163,8 +163,12 @@ npm run format         # biome check --write .
 
 node dist/cli.js plan  test/fixtures/all-journeys-alpha.json [-j Login] [--choose "Node=outcome"] [--target failure] [--debug]
 node dist/cli.js paths test/fixtures/all-journeys-alpha.json -j DemoSignup
-node dist/cli.js gen   test/fixtures/all-journeys-alpha.json -o out --tenant https://<tenant> --realm alpha --with-session Login
+node dist/cli.js gen    test/fixtures/all-journeys-alpha.json -o out --tenant https://<tenant> --realm alpha --with-session Login   # .sh + .runbook.md
+node dist/cli.js report test/fixtures/all-journeys-alpha.json -o out --min-coverage partial   # index.html, report.json, report.md; exit 2 if below
+node dist/cli.js all    test/fixtures/all-journeys-alpha.json -o out --with-session Login     # gen + report
 ```
+
+File writing lives in `src/generate/write.ts` (`writeJourneyFiles`, `writeReport`), so tests call it without the CLI.
 
 Before committing: `npm run lint && npm run typecheck && npm test`.
 

@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Journey Coverage</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --panel: #ffffff; --text: #1d1d1b; --muted: #6b6b66; --line: #e3e2dd;
+    --full: #1f7a4d; --full-bg: #e3f3ea; --partial: #8a5a00; --partial-bg: #fbf0d9;
+    --manual: #a3302a; --manual-bg: #f9e2e0; --link: #2457a6;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615; --panel: #1f1f1d; --text: #ecebe6; --muted: #a09f98; --line: #34332f;
+      --full: #6fd29f; --full-bg: #183326; --partial: #f0c36b; --partial-bg: #3a2e14;
+      --manual: #f39a92; --manual-bg: #3d1d1a; --link: #8db4f0;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1100px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 24px; margin: 0 0 4px; }
+  .sub { color: var(--muted); margin: 0 0 24px; font-size: 14px; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+  .tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; }
+  .tile b { display: block; font-size: 26px; line-height: 1.1; }
+  .tile span { color: var(--muted); font-size: 13px; }
+  .wrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; }
+  table { width: 100%; border-collapse: collapse; min-width: 640px; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+  tr:last-child td { border-bottom: 0; }
+  td.num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: 12px; font-weight: 600; }
+  .full { color: var(--full); background: var(--full-bg); }
+  .partial { color: var(--partial); background: var(--partial-bg); }
+  .manual { color: var(--manual); background: var(--manual-bg); }
+  a { color: var(--link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .files a { margin-right: 10px; font-size: 13px; white-space: nowrap; }
+  code { font: 12.5px ui-monospace, SFMono-Regular, Consolas, monospace; background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+  details { margin-top: 6px; color: var(--muted); font-size: 13px; }
+  details ul { margin: 6px 0 0; padding-left: 18px; }
+  .journey { font-weight: 600; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Journey coverage</h1>
+  <p class="sub"><%~ it.r.summary.journeys %> journeys<% if (it.r.source) { %> from <code><%~ it.esc(it.r.source) %></code><% } %><% if (it.r.export.origin) { %> · <%~ it.esc(it.r.export.origin) %><% } %> · generated <%~ it.esc(it.r.generatedAt) %></p>
+
+  <div class="tiles">
+    <div class="tile"><b><%~ it.r.summary.journeys %></b><span>Journeys</span></div>
+    <div class="tile"><b style="color:var(--full)"><%~ it.r.summary.full %></b><span>Full: script runs on its own</span></div>
+    <div class="tile"><b style="color:var(--partial)"><%~ it.r.summary.partial %></b><span>Partial: email, session or code needed</span></div>
+    <div class="tile"><b style="color:var(--manual)"><%~ it.r.summary.manual %></b><span>Manual: a person must help</span></div>
+  </div>
+
+  <div class="wrap">
+  <table>
+    <thead><tr><th>Journey</th><th>Steps</th><th>Coverage</th><th>Main note</th><th>Files</th></tr></thead>
+    <tbody>
+<% for (const j of it.r.journeys) { %>
+      <tr>
+        <td class="journey"><% if (it.viewers) { %><a href="<%~ it.href(j.files.viewer) %>"><%~ it.esc(j.journey) %></a><% } else { %><%~ it.esc(j.journey) %><% } %></td>
+        <td class="num"><%~ it.esc(j.stepsText) %></td>
+        <td><span class="badge <%~ j.coverage %>"><%~ it.label[j.coverage] %></span></td>
+        <td><%~ it.note(j.note) %>
+<% if (j.coverageNotes.length || j.warnings.length) { %>
+          <details><summary><%~ j.coverageNotes.length + j.warnings.length %> note<%~ j.coverageNotes.length + j.warnings.length === 1 ? '' : 's' %></summary><ul>
+<% for (const n of j.coverageNotes) { %>            <li><%~ it.note(n) %></li>
+<% } %><% for (const w of j.warnings) { %>            <li><%~ it.esc(w.level) %>: <%~ it.note(w.message) %></li>
+<% } %>          </ul></details>
+<% } %>
+        </td>
+        <td class="files"><a href="<%~ it.href(j.files.sh) %>">.sh</a><a href="<%~ it.href(j.files.runbook) %>">runbook</a><% if (it.viewers) { %><a href="<%~ it.href(j.files.viewer) %>">flow</a><% } %></td>
+      </tr>
+<% } %>
+    </tbody>
+  </table>
+  </div>
+  <p class="sub" style="margin-top:16px">Machine-readable data: <a href="report.json">report.json</a> · for pull requests: <a href="report.md">report.md</a></p>
+</main>
+</body>
+</html>

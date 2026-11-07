@@ -1,13 +1,13 @@
 #!/usr/bin/env node
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename } from 'node:path';
 import { Command, Option } from 'commander';
 import { Planner, type PlanOptions } from './analyze/planner.js';
 import { type BkConfig, loadConfig } from './config.js';
 import { formatPlan } from './format/plan-text.js';
-import { generateSh } from './generate/sh.js';
+import { coverageBelow } from './generate/report.js';
+import { writeJourneyFiles, writeReport } from './generate/write.js';
 import { loadExportFile } from './load/loader.js';
-import type { ExportBundle, Plan } from './model/types.js';
+import type { Coverage, ExportBundle, Plan } from './model/types.js';
 
 interface CommonOpts {
   journey?: string[];
@@ -18,11 +18,12 @@ interface CommonOpts {
   includeInner?: boolean;
 }
 
-interface GenOpts extends CommonOpts {
+interface OutOpts extends CommonOpts {
   out: string;
   tenant?: string;
   realm?: string;
   withSession?: string;
+  minCoverage?: Coverage;
 }
 
 const collect = (v: string, prev: string[] = []) => [...prev, v];
@@ -36,8 +37,26 @@ function withCommon(cmd: Command): Command {
       new Option('--target <target>', 'plan to Success or Failure').choices(['success', 'failure']).default('success'),
     )
     .option('-c, --config <file>', 'bk.config.json (default: ./bk.config.json if present)')
-    .option('--include-inner', 'also process journeys only used as inner journeys')
-    .option('--debug', 'dump intermediate objects as JSON');
+    .option('--include-inner', 'also process journeys marked inner-tree-only')
+    .option('--debug', 'dump intermediate objects as JSON to stderr');
+}
+
+function withOut(cmd: Command): Command {
+  return cmd
+    .option('-o, --out <dir>', 'output directory', 'out')
+    .option('--tenant <url>', 'tenant base URL, e.g. https://openam-xyz.forgeblocks.com')
+    .option('--realm <realm>', 'realm (default alpha)')
+    .option('--with-session <journey>', 'run this journey first for journeys that need a session');
+}
+
+function withMinCoverage(cmd: Command): Command {
+  return cmd.addOption(
+    new Option('--min-coverage <level>', 'exit with code 2 if any journey is below this coverage (for CI)').choices([
+      'full',
+      'partial',
+      'manual',
+    ]),
+  );
 }
 
 interface Loaded {
@@ -52,8 +71,9 @@ function load(file: string, opts: CommonOpts): Loaded {
   for (const w of bundle.warnings) process.stderr.write(`warning: ${w.message}\n`);
   let names = opts.journey?.length ? opts.journey : [...bundle.journeys.keys()];
   for (const n of names) {
-    if (!bundle.journeys.has(n))
+    if (!bundle.journeys.has(n)) {
       throw new Error(`Journey "${n}" is not in the export (have: ${[...bundle.journeys.keys()].join(', ')})`);
+    }
   }
   if (!opts.journey?.length && !opts.includeInner) {
     const innerOnly = new Set([...bundle.journeys.values()].filter((j) => j.innerTreeOnly).map((j) => j.id));
@@ -73,24 +93,43 @@ function debugDump(opts: CommonOpts, label: string, value: unknown) {
   process.stderr.write(`--- ${label}\n${JSON.stringify(value, replacer, 2)}\n`);
 }
 
-/** Write <out>/<journey>/<journey>.sh for each plan; returns the written paths. */
-export function writeScripts(plans: Plan[], planner: Planner, file: string, opts: GenOpts, config: BkConfig): string[] {
-  const written: string[] = [];
-  const sessionPlan = opts.withSession ? planner.plan(opts.withSession) : undefined;
-  for (const plan of plans) {
-    const dir = join(opts.out, plan.journey);
-    mkdirSync(dir, { recursive: true });
-    const sh = generateSh(plan, {
-      tenant: opts.tenant ?? config.tenant,
-      realm: opts.realm ?? config.realm,
-      source: basename(file),
-      sessionPlan: plan.needsSession && plan.journey !== opts.withSession ? sessionPlan : undefined,
-    });
-    const path = join(dir, `${plan.journey}.sh`);
-    writeFileSync(path, sh, { mode: 0o755 });
-    written.push(path);
+function planAllNamed(file: string, opts: CommonOpts & { withSession?: string }) {
+  const { bundle, config, names } = load(file, opts);
+  debugDump(opts, 'ExportBundle', bundle);
+  const planner = new Planner(bundle, planOptions(opts, config));
+  const plans = names.map((n) => planner.plan(n));
+  debugDump(opts, 'Plans', plans);
+  return { bundle, config, planner, plans };
+}
+
+function genFiles(file: string, opts: OutOpts) {
+  const ctx = planAllNamed(file, opts);
+  const written = writeJourneyFiles(ctx.plans, ctx.planner, {
+    out: opts.out,
+    tenant: opts.tenant ?? ctx.config.tenant,
+    realm: opts.realm ?? ctx.config.realm,
+    source: basename(file),
+    withSession: opts.withSession,
+  });
+  for (const p of written) process.stdout.write(`wrote ${p}\n`);
+  return ctx;
+}
+
+function reportFiles(file: string, opts: OutOpts, plans: Plan[], bundle: ExportBundle) {
+  const { report, written } = writeReport(plans, bundle.meta, { out: opts.out, source: basename(file) });
+  for (const p of written) process.stdout.write(`wrote ${p}\n`);
+  const s = report.summary;
+  process.stdout.write(`${s.journeys} journeys: ${s.full} full, ${s.partial} partial, ${s.manual} manual\n`);
+  if (opts.minCoverage) {
+    const min = opts.minCoverage;
+    const below = plans.filter((p) => coverageBelow(p.coverage, min));
+    if (below.length) {
+      process.stderr.write(
+        `coverage below ${opts.minCoverage}: ${below.map((p) => `${p.journey} (${p.coverage})`).join(', ')}\n`,
+      );
+      process.exitCode = 2;
+    }
   }
-  return written;
 }
 
 export function main(argv = process.argv): void {
@@ -102,11 +141,7 @@ export function main(argv = process.argv): void {
 
   withCommon(program.command('plan').description('print the planned path and steps of each journey')).action(
     (file: string, opts: CommonOpts) => {
-      const { bundle, config, names } = load(file, opts);
-      debugDump(opts, 'ExportBundle', bundle);
-      const planner = new Planner(bundle, planOptions(opts, config));
-      const plans = names.map((n) => planner.plan(n));
-      debugDump(opts, 'Plans', plans);
+      const { plans } = planAllNamed(file, opts);
       process.stdout.write(`${plans.map(formatPlan).join('\n\n')}\n`);
     },
   );
@@ -121,26 +156,32 @@ export function main(argv = process.argv): void {
         process.stdout.write(`Journey: ${n}  (${paths.length} path${paths.length === 1 ? '' : 's'})\n`);
         paths.forEach((p, i) => {
           const text = p.map((e) => `${e.node.name} --${e.outcome}-->`).join(' ');
-          process.stdout.write(
-            `  ${String(i + 1).padStart(2)}. ${text} ${opts.target === 'failure' ? 'Failure' : 'Success'}\n`,
-          );
+          const end = opts.target === 'failure' ? 'Failure' : 'Success';
+          process.stdout.write(`  ${String(i + 1).padStart(2)}. ${text} ${end}\n`);
         });
         process.stdout.write('\n');
       }
     });
 
-  withCommon(program.command('gen').description('write <out>/<journey>/<journey>.sh for each journey'))
-    .option('-o, --out <dir>', 'output directory', 'out')
-    .option('--tenant <url>', 'tenant base URL, e.g. https://openam-xyz.forgeblocks.com')
-    .option('--realm <realm>', 'realm (default alpha)')
-    .option('--with-session <journey>', 'run this journey first for journeys that need a session')
-    .action((file: string, opts: GenOpts) => {
-      const { bundle, config, names } = load(file, opts);
-      const planner = new Planner(bundle, planOptions(opts, config));
-      const plans = names.map((n) => planner.plan(n));
-      debugDump(opts, 'Plans', plans);
-      for (const p of writeScripts(plans, planner, file, opts, config)) process.stdout.write(`wrote ${p}\n`);
-    });
+  withOut(withCommon(program.command('gen').description('write <out>/<journey>/<journey>.sh and .runbook.md'))).action(
+    (file: string, opts: OutOpts) => {
+      genFiles(file, opts);
+    },
+  );
+
+  withMinCoverage(
+    withOut(withCommon(program.command('report').description('write index.html, report.json and report.md'))),
+  ).action((file: string, opts: OutOpts) => {
+    const { plans, bundle } = planAllNamed(file, opts);
+    reportFiles(file, opts, plans, bundle);
+  });
+
+  withMinCoverage(withOut(withCommon(program.command('all').description('gen + report')))).action(
+    (file: string, opts: OutOpts) => {
+      const { plans, bundle } = genFiles(file, opts);
+      reportFiles(file, opts, plans, bundle);
+    },
+  );
 
   program.parse(argv);
 }

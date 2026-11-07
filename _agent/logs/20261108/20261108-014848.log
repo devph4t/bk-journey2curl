@@ -39,3 +39,12 @@
 [2026-11-08 02:11:57 UTC+7] Verification: biome check clean, tsc --noEmit clean, vitest 58/58, tsup build OK
 [2026-11-08 02:11:57 UTC+7] Added bk.config.example.json; CLAUDE.md: Commands section + M1 implementation notes; plan 002 ticked, results table, deviations noted, status Done (M1)
 [2026-11-08 02:11:57 UTC+7] Committing M1
+[2026-11-08 02:12:07 UTC+7] Committed M1 as b39ecb9 (42 files)
+[2026-11-08 02:12:35 UTC+7] Started M2: created plan _agent/plan/003-20261108-021223.md (runbook.md, report html/json/md, report + all commands, --min-coverage for CI)
+[2026-11-08 02:16:49 UTC+7] M2: wrote src/generate/runbook.ts (setup, inputs table, start call with zero-page headers, per-step curl + body, variants, suspend resume, expected next)
+[2026-11-08 02:16:49 UTC+7] M2: wrote src/generate/report.ts (buildReport, stepsText, mainNote, report.md, report.html via src/templates/report.html.eta with light/dark CSS and escaping) and src/generate/write.ts
+[2026-11-08 02:16:49 UTC+7] M2: rewrote src/cli.ts with gen (sh+runbook), report, all, --min-coverage (exit 2 when below)
+[2026-11-08 02:16:49 UTC+7] Ran all on sample: 13 journeys 7 full/5 partial/1 manual; --min-coverage partial -> exit 2 (passwordless2), --min-coverage manual -> exit 0; index.html 13 rows, no leftover template tags
+[2026-11-08 02:16:49 UTC+7] Fixes during M2: runbook body compact (one callback per line); variant plain text for data-driven variants; suspend variant shows resume curl; removed nested parentheses in variant note
+[2026-11-08 02:16:49 UTC+7] Wrote test/report.test.ts; first run 71/72 (UpdatePassword.sh snapshot changed only by the intended wording fix) -> updated snapshot; final: biome clean, tsc clean, vitest 72/72, build OK
+[2026-11-08 02:16:49 UTC+7] Plan 003 ticked + results, status Done (M2); CLAUDE.md commands updated; committing M2
