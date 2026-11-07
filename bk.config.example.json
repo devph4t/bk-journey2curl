@@ -1,0 +1,25 @@
+{
+  "tenant": "https://openam-CHANGE_ME.forgeblocks.com",
+  "realm": "alpha",
+  "inputs": {
+    "IN_USERNAME": "demo.user",
+    "IN_MAIL": "demo.user@example.com",
+    "IN_GIVENNAME": "Demo",
+    "IN_SN": "User",
+    "IN_CITY": "Bangkok"
+  },
+  "attributeTypes": {
+    "preferences/updates": "boolean",
+    "preferences/marketing": "boolean"
+  },
+  "kbaCount": 1,
+  "choose": [],
+  "solvers": [
+    {
+      "journey": "DemoSignup",
+      "node": "Partner Code",
+      "jq": "\"PARTNER-0001\"",
+      "label": "fixed partner code"
+    }
+  ]
+}

@@ -13,3 +13,29 @@
 [2026-11-08 01:50:39 UTC+7] First commit failed: no git author identity; set repo-local user.name=Thanaphat, user.email=user's email
 [2026-11-08 01:50:39 UTC+7] Added .gitattributes (eol=lf; .ps1 crlf; images binary) so generated .sh keep LF on Windows (CRLF warnings seen on git add)
 [2026-11-08 01:50:39 UTC+7] Committing initial files on main
+[2026-11-08 01:50:43 UTC+7] Committed 63f75b9 on main (6 files, 698 insertions); working tree clean except this log line
+[2026-11-08 01:54:34 UTC+7] Committed state confirmed; user approved self-commit earlier
+[2026-11-08 01:54:34 UTC+7] New task from user: start plan and implement from bk-journey2curl-design.md
+[2026-11-08 01:54:34 UTC+7] Toolchain: node v26.12.1, npm 11.20.0, bash 5.3, git 2.56; pnpm NOT installed; jq NOT installed (generated scripts cannot run locally yet)
+[2026-11-08 01:54:34 UTC+7] Found sample export at C:\Users\bk\Downloads\all-journeysExport-alpha-realm-openam-aic400-021126s1...json (129 KB, Admin UI 1.1, 13 journeys)
+[2026-11-08 01:54:34 UTC+7] Inspected export: listed nodes/outcomes per journey, ~30 node types, 17 next-gen scripts (decoded with 1 JSON.parse level), inner node configs, staticNodes x/y
+[2026-11-08 01:54:34 UTC+7] Created plan _agent/plan/002-20261108-015409.md (roadmap M1-M4, M1 detailed; decisions: cost-based path search, variant/optional rules, IN_* naming, KBA default 1, eta for sh skeleton, npm)
+[2026-11-08 01:56:18 UTC+7] Scaffold: package.json (type module, bin bkj2c); installed commander@13 eta@3 zod@4 (first run interrupted by user, then resumed); dev: typescript~5.9 tsup@8 vitest@3 biome@2 @types/node@20 (pinned to known majors instead of newest TS7/eta4/vitest5)
+[2026-11-08 02:08:44 UTC+7] Config files: tsconfig (strict, noUncheckedIndexedAccess), tsup (esm, copies src/templates -> dist/templates), vitest, biome (2-space, single quotes, ignores _agent/fixtures/out/dist)
+[2026-11-08 02:08:44 UTC+7] Fixture test/fixtures/all-journeys-alpha.json created from Downloads export; meta.exportedBy redacted to redacted@example.com
+[2026-11-08 02:08:44 UTC+7] Wrote src/model/types.ts (+ Variant.kind, InputSpec.jq, Plan.coverageNotes/inputs/headers/unreachable), src/model/schema.ts (zod v4 looseObject)
+[2026-11-08 02:08:44 UTC+7] Wrote src/load: detect.ts (admin-ui/frodo/single-bundle/raw-tree), script-decode.ts (nested JSON strings, line arrays, base64), loader.ts
+[2026-11-08 02:08:44 UTC+7] Wrote src/config.ts (bk.config.json: tenant, realm, inputs, attributeTypes, kbaCount, choose, solvers)
+[2026-11-08 02:08:44 UTC+7] Wrote catalog: callbacks.ts (input layouts, IDToken naming), script-scan.ts (tokenizer; callbacksBuilder + legacy new XCallback; array/concat eval; goTo links choices[picked] and c===0?a:b), platform.ts, flow.ts, mfa.ts, scripted.ts, index.ts (PageNode composes children)
+[2026-11-08 02:08:44 UTC+7] Wrote planner.ts (Dijkstra with outcome penalties for 'preferred' nodes, +3 per interactive node, pins, inner journeys depth<=5, branch analysis -> variant/optional/warning), solvers.ts (math-sum, echo-text, echo-hidden, totp, custom), inputs.ts (IN_* naming + dedupe, IN_NEW_PASSWORD), plain-text.ts, coverage.ts
+[2026-11-08 02:08:44 UTC+7] Wrote format/plan-text.ts, generate/sh.ts + templates/script.sh.eta (step functions, SUSPENDED_ID resume, run_session for --with-session, poll loop, otp_code), cli.ts (plan, paths, gen), index.ts
+[2026-11-08 02:08:44 UTC+7] tsc --noEmit clean; tsup build OK (esbuild worked without its blocked postinstall)
+[2026-11-08 02:08:44 UTC+7] plan on all 13 journeys: Login 1+1 optional FULL; DemoSignup 6 steps, variant math/phrase/pin solved FULL; Agent 0 steps headers FULL; Registration/ResetPassword/ForgottenUsername PARTIAL (email suspend); UpdatePassword PARTIAL (session + variant); frAuth2 PARTIAL (OTP); passwordless2 MANUAL (WebAuthn) - matches design table
+[2026-11-08 02:08:44 UTC+7] Fixed: alt-branch nodes leaked into trail; blank path line; false dynamic-prompt info on ConfirmationCallback; HiddenValueCallback(?) display; HiddenValue inputs no longer get IN_* vars; clearer Login Count/Query Filter conditions
+[2026-11-08 02:11:57 UTC+7] Generated all 13 scripts with gen --with-session Login into out/ (git-ignored); bash -n OK on every script; reviewed DemoSignup.sh (variant case with math-sum/echo-text/echo-hidden jq) and UpdatePassword.sh (run_session + SUSPENDED_ID resume at step 2)
+[2026-11-08 02:11:57 UTC+7] Wrote tests: test/helpers.ts, load.test.ts, catalog.test.ts, planner.test.ts, generate.snap.test.ts
+[2026-11-08 02:11:57 UTC+7] First test run: 57 passed, 1 failed (--choose on a random picker still produced a variant); fix: pinned server-decided node skips branch analysis + info warning 'pinned-server-branch'
+[2026-11-08 02:11:57 UTC+7] Second run: 58/58 passed, 10 snapshots written; biome --write formatted 18 files; disabled noTemplateCurlyInString for test/** (bash ${..} literals); removed dead 'void outcome' line
+[2026-11-08 02:11:57 UTC+7] Verification: biome check clean, tsc --noEmit clean, vitest 58/58, tsup build OK
+[2026-11-08 02:11:57 UTC+7] Added bk.config.example.json; CLAUDE.md: Commands section + M1 implementation notes; plan 002 ticked, results table, deviations noted, status Done (M1)
+[2026-11-08 02:11:57 UTC+7] Committing M1

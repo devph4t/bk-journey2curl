@@ -1,0 +1,41 @@
+{
+  "name": "bk-journey2curl",
+  "version": "0.1.0",
+  "description": "Turn a PingOne Advanced Identity Cloud journey export into curl scripts, a flow viewer and a coverage report",
+  "type": "module",
+  "bin": {
+    "bkj2c": "dist/cli.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:update": "vitest run -u",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "bkj2c": "node dist/cli.js"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "commander": "^13.1.0",
+    "eta": "^3.5.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.6.6",
+    "@types/node": "^20.19.43",
+    "tsup": "^8.5.1",
+    "typescript": "~5.9",
+    "vitest": "^3.2.7"
+  }
+}

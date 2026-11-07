@@ -1,0 +1,1060 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`plan text > Agent 1`] = `
+"Journey: Agent  →  Success     coverage: FULL
+Path
+  Zero Page Login Collector [ZeroPageLoginNode] --true--> Agent Data Store Decision [AgentDataStoreDecisionNode] --true--> 
+  Success
+Headers
+  X-OpenAM-Username: $IN_USERNAME
+  X-OpenAM-Password: $IN_PASSWORD
+Steps
+  (none: no callbacks on the path)
+Inputs
+  IN_USERNAME=CHANGE_ME   Sent as a request header (Zero Page Login)
+  IN_PASSWORD=***   Sent as a request header (Zero Page Login)"
+`;
+
+exports[`plan text > DemoSignup 1`] = `
+"Journey: DemoSignup  →  Success     coverage: FULL (1 variant step, solved at run time)
+Path
+  Init Run [ScriptedDecisionNode] --next--> Choose Channel [ScriptedDecisionNode] --web--> Registration Page [PageNode] --outcome--> 
+  Does User Exist [IdentifyExistingUserNode] --false--> Inner Tree: Verify [InnerTreeEvaluatorNode] --true--> 
+     ↳ Random Challenge Picker [ScriptedDecisionNode] --math--> Math Challenge [ScriptedDecisionNode] --pass--> 
+       Success
+  Terms Consent [ScriptedDecisionNode] --accept--> Prepare Object [ScriptedDecisionNode] --next--> Create Object [CreateObjectNode] --CREATED--> 
+  Inner Tree: Preferences [InnerTreeEvaluatorNode] --true--> 
+     ↳ Collect Preferences [ScriptedDecisionNode] --next--> Patch Object [PatchObjectNode] --PATCHED--> 
+       Success
+  Increment Login Count [IncrementLoginCountNode] --outcome--> Audit Log [ScriptedDecisionNode] --next--> 
+  Show Summary [ScriptedDecisionNode] --next--> Success
+Steps
+  #1 submit    Choose Channel         TextOutputCallback, ChoiceCallback(IN_CHANNEL=0 "web")
+  #2 submit    Registration Page      ValidatedCreateUsernameCallback(IN_USERNAME), StringAttributeInputCallback ×3 (givenName, sn, mail), ValidatedCreatePasswordCallback(IN_PASSWORD)
+  #3 variant   DemoVerifySub
+               Random Challenge Picker decides on the server:
+               · math    NameCallback   solver math-sum
+               · phrase  TextOutputCallback, NameCallback   solver echo-text
+               · pin     HiddenValueCallback, PasswordCallback   solver echo-hidden
+  #4 submit    Terms Consent          TextOutputCallback, ConfirmationCallback(IN_TERMS_CONSENT=0 "Accept")
+  #5 submit    DemoPreferencesSub / Collect Preferences
+               NameCallback(IN_CITY), ChoiceCallback(IN_PREFERRED_LANGUAGE=0 "en")
+  #6 submit    Show Summary           TextOutputCallback
+Inputs
+  IN_CHANNEL=0   ChoiceCallback "Which channel are you signing up from?" — step 1, DemoSignup / Choose Channel
+  IN_USERNAME=CHANGE_ME   ValidatedCreateUsernameCallback "Username" — step 2, DemoSignup / Registration Page
+  IN_GIVENNAME=CHANGE_ME   StringAttributeInputCallback "givenName" — step 2, DemoSignup / Registration Page
+  IN_SN=CHANGE_ME   StringAttributeInputCallback "sn" — step 2, DemoSignup / Registration Page
+  IN_MAIL=change.me@example.com   StringAttributeInputCallback "mail" — step 2, DemoSignup / Registration Page
+  IN_PASSWORD=***   ValidatedCreatePasswordCallback "Password" — step 2, DemoSignup / Registration Page
+  IN_TERMS_CONSENT=0   ConfirmationCallback — step 4, DemoSignup / Terms Consent
+  IN_CITY=CHANGE_ME   NameCallback "City" — step 5, DemoPreferencesSub / Collect Preferences
+  IN_PREFERRED_LANGUAGE=0   ChoiceCallback "Preferred language" — step 5, DemoPreferencesSub / Collect Preferences"
+`;
+
+exports[`plan text > Login 1`] = `
+"Journey: Login  →  Success     coverage: FULL
+Path
+  Page Node [PageNode] --outcome--> Identity Store Decision [IdentityStoreDecisionNode] --TRUE--> Increment Login Count [IncrementLoginCountNode] --outcome--> 
+  Inner Tree Evaluator [InnerTreeEvaluatorNode] --true--> 
+     ↳ Login Count Decision [LoginCountDecisionNode] --false--> Success
+Steps
+  #1 submit    Page Node (Sign In)    NameCallback(IN_USERNAME), PasswordCallback(IN_PASSWORD)
+  #2 optional  ProgressiveProfile / Page Node (Please select your preferences)
+               BooleanAttributeInputCallback(preferences/updates), BooleanAttributeInputCallback(preferences/marketing)
+               appears only when it is login number 3, and the user matches "!(/preferences pr) or /preferences/marketing eq false or /preferences/updates eq false"
+Inputs
+  IN_USERNAME=CHANGE_ME   NameCallback "User Name" — step 1, Login / Page Node (Sign In)
+  IN_PASSWORD=***   PasswordCallback "Password" — step 1, Login / Page Node (Sign In)
+  IN_PREF_UPDATES=false   BooleanAttributeInputCallback "preferences/updates" — step 2, ProgressiveProfile / Page Node (Please select your preferences)
+  IN_PREF_MARKETING=false   BooleanAttributeInputCallback "preferences/marketing" — step 2, ProgressiveProfile / Page Node (Please select your preferences)"
+`;
+
+exports[`plan text > UpdatePassword 1`] = `
+"Journey: UpdatePassword  →  Success     coverage: PARTIAL
+Path
+  Get Session Data [SessionDataNode] --outcome--> Attribute Present Decision [AttributePresentDecisionNode] --false--> 
+  Email Suspend Node [EmailSuspendNode] --outcome--> Page Node [PageNode] --outcome--> Patch Object [PatchObjectNode] --PATCHED--> 
+  Success
+Steps
+  #1 variant   Attribute Present Decision
+               Attribute Present Decision decides on the server:
+               · true   PasswordCallback(IN_PASSWORD)
+               · false  SuspendedTextOutputCallback
+  #2 submit    Page Node (Update Password)
+               ValidatedCreatePasswordCallback(IN_NEW_PASSWORD)
+Coverage notes
+  - Step 1 may stop for an email link (variant false)
+  - Needs an existing session: generate with --with-session Login
+Inputs
+  IN_PASSWORD=***   PasswordCallback "Password" — step 1, UpdatePassword / Attribute Present Decision (variant true)
+  IN_NEW_PASSWORD=***   ValidatedCreatePasswordCallback "Password" — step 2, UpdatePassword / Page Node (Update Password)"
+`;
+
+exports[`sh generator > Agent.sh 1`] = `
+"#!/usr/bin/env bash
+# Agent — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: FULL   Steps: 0
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./Agent.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+# Needs:  bash 4+, curl, jq 1.6+
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_USERNAME:=CHANGE_ME}"   # Sent as a request header (Zero Page Login)
+: "\${IN_PASSWORD:=CHANGE_ME}"   # Sent as a request header (Zero Page Login)
+
+JOURNEY='Agent'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+
+# ---- run ---------------------------------------------------------------------------------------
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  say "this journey has no suspend step"; exit 4
+fi
+RESP="$(post '{}' -H "X-OpenAM-Username: $IN_USERNAME" -H "X-OpenAM-Password: $IN_PASSWORD")"
+for ((n = START; n <= 0; n++)); do "step_$n"; done
+finish
+"
+`;
+
+exports[`sh generator > DemoSignup.sh 1`] = `
+"#!/usr/bin/env bash
+# DemoSignup — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: FULL   Steps: 6
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./DemoSignup.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+# Needs:  bash 4+, curl, jq 1.6+
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_CHANNEL:=0}"   # ChoiceCallback "Which channel are you signing up from?" — step 1, DemoSignup / Choose Channel
+: "\${IN_USERNAME:=CHANGE_ME}"   # ValidatedCreateUsernameCallback "Username" — step 2, DemoSignup / Registration Page
+: "\${IN_GIVENNAME:=CHANGE_ME}"   # StringAttributeInputCallback "givenName" — step 2, DemoSignup / Registration Page
+: "\${IN_SN:=CHANGE_ME}"   # StringAttributeInputCallback "sn" — step 2, DemoSignup / Registration Page
+: "\${IN_MAIL:=change.me@example.com}"   # StringAttributeInputCallback "mail" — step 2, DemoSignup / Registration Page
+: "\${IN_PASSWORD:=CHANGE_ME}"   # ValidatedCreatePasswordCallback "Password" — step 2, DemoSignup / Registration Page
+: "\${IN_TERMS_CONSENT:=0}"   # ConfirmationCallback — step 4, DemoSignup / Terms Consent
+: "\${IN_CITY:=CHANGE_ME}"   # NameCallback "City" — step 5, DemoPreferencesSub / Collect Preferences
+: "\${IN_PREFERRED_LANGUAGE:=0}"   # ChoiceCallback "Preferred language" — step 5, DemoPreferencesSub / Collect Preferences
+
+JOURNEY='DemoSignup'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+# Step 1 – submit: Choose Channel
+#   Which channel are you signing up from (web, mobile, partner)
+step_1() {
+  check 1 'TextOutputCallback,ChoiceCallback'
+  set_json 1 0 "$IN_CHANNEL"
+  submit
+}
+
+# Step 2 – submit: Registration Page
+#   Choose a username, enter your first name, enter your last name, enter your email address and choose a password
+step_2() {
+  check 2 'ValidatedCreateUsernameCallback,StringAttributeInputCallback,StringAttributeInputCallback,StringAttributeInputCallback,ValidatedCreatePasswordCallback'
+  set_str 0 0 "$IN_USERNAME"
+  set_str 1 0 "$IN_GIVENNAME"
+  set_str 2 0 "$IN_SN"
+  set_str 3 0 "$IN_MAIL"
+  set_str 4 0 "$IN_PASSWORD"
+  submit
+}
+
+# Step 3 – variant: DemoVerifySub / Random Challenge Picker
+#   The system gives you one of 3 quick challenges (math, phrase, pin) and checks your answer
+step_3() {
+  case "$(types)" in
+    'NameCallback')   # math: Math challenge: what is {a} + {b}?
+      set_jq 0 0 '(.callbacks[0].output[] | select(.name == "prompt") | .value | capture("(?<a>-?[0-9]+) *[+] *(?<b>-?[0-9]+)") | (.a | tonumber) + (.b | tonumber) | tostring)'   # solver math-sum
+      submit ;;
+    'TextOutputCallback,NameCallback')   # phrase: Phrase challenge: your word is {w}
+      set_jq 1 0 '(.callbacks[0].output[] | select(.name == "message") | .value | split(" ") | last)'   # solver echo-text
+      submit ;;
+    'HiddenValueCallback,PasswordCallback')   # pin: demoPin
+      set_jq 1 0 '(.callbacks[0].output[] | select(.name == "value") | .value)'   # solver echo-hidden
+      submit ;;
+    *) unexpected 3 'NameCallback | TextOutputCallback,NameCallback | HiddenValueCallback,PasswordCallback' ;;
+  esac
+}
+
+# Step 4 – submit: Terms Consent
+#   Choose Accept or Decline
+step_4() {
+  check 4 'TextOutputCallback,ConfirmationCallback'
+  set_json 1 0 "$IN_TERMS_CONSENT"
+  submit
+}
+
+# Step 5 – submit: DemoPreferencesSub / Collect Preferences
+#   Enter city and preferred language (en, th, ja)
+step_5() {
+  check 5 'NameCallback,ChoiceCallback'
+  set_str 0 0 "$IN_CITY"
+  set_json 1 0 "$IN_PREFERRED_LANGUAGE"
+  submit
+}
+
+# Step 6 – submit: Show Summary
+#   Read the message ("Account ready. Channel: …, challenge: …") and continue
+step_6() {
+  check 6 'TextOutputCallback'
+  submit
+}
+
+# ---- run ---------------------------------------------------------------------------------------
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  say "this journey has no suspend step"; exit 4
+fi
+RESP="$(post '{}')"
+for ((n = START; n <= 6; n++)); do "step_$n"; done
+finish
+"
+`;
+
+exports[`sh generator > Login.sh 1`] = `
+"#!/usr/bin/env bash
+# Login — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: FULL   Steps: 2
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./Login.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+# Needs:  bash 4+, curl, jq 1.6+
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_USERNAME:=CHANGE_ME}"   # NameCallback "User Name" — step 1, Login / Page Node (Sign In)
+: "\${IN_PASSWORD:=CHANGE_ME}"   # PasswordCallback "Password" — step 1, Login / Page Node (Sign In)
+: "\${IN_PREF_UPDATES:=false}"   # BooleanAttributeInputCallback "preferences/updates" — step 2, ProgressiveProfile / Page Node (Please select your preferences)
+: "\${IN_PREF_MARKETING:=false}"   # BooleanAttributeInputCallback "preferences/marketing" — step 2, ProgressiveProfile / Page Node (Please select your preferences)
+
+JOURNEY='Login'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+# Step 1 – submit: Page Node (Sign In)
+#   Sign in with your username and password
+step_1() {
+  check 1 'NameCallback,PasswordCallback'
+  set_str 0 0 "$IN_USERNAME"
+  set_str 1 0 "$IN_PASSWORD"
+  submit
+}
+
+# Step 2 – optional: ProgressiveProfile / Page Node (Please select your preferences)
+#   If asked: choose whether to receive updates and choose whether to receive marketing emails (only when it is login number 3, and the user mat
+step_2() {
+  if [[ "$(types)" == 'BooleanAttributeInputCallback,BooleanAttributeInputCallback' ]]; then
+    set_json 0 0 "$IN_PREF_UPDATES"
+    set_json 1 0 "$IN_PREF_MARKETING"
+    submit
+  else
+    log "step 2 skipped (optional: only when it is login number 3, and the user matches \\"!(/preferences pr) or /preferences/marketing eq false or /preferences/updates eq false\\")"
+  fi
+}
+
+# ---- run ---------------------------------------------------------------------------------------
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  say "this journey has no suspend step"; exit 4
+fi
+RESP="$(post '{}')"
+for ((n = START; n <= 2; n++)); do "step_$n"; done
+finish
+"
+`;
+
+exports[`sh generator > Registration.sh 1`] = `
+"#!/usr/bin/env bash
+# Registration — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: PARTIAL   Steps: 2
+#   - Stops at step 2 (Email Suspend Node) until the email link is opened
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./Registration.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+#         SUSPENDED_ID=<id from the email link> ./Registration.sh   resumes at step 3.
+# Needs:  bash 4+, curl, jq 1.6+
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_USERNAME:=CHANGE_ME}"   # ValidatedCreateUsernameCallback "Username" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_GIVENNAME:=CHANGE_ME}"   # StringAttributeInputCallback "givenName" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_SN:=CHANGE_ME}"   # StringAttributeInputCallback "sn" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_MAIL:=change.me@example.com}"   # StringAttributeInputCallback "mail" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_PREF_MARKETING:=false}"   # BooleanAttributeInputCallback "preferences/marketing" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_PREF_UPDATES:=false}"   # BooleanAttributeInputCallback "preferences/updates" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_PASSWORD:=CHANGE_ME}"   # ValidatedCreatePasswordCallback "Password" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_KBA_QUESTION:=CHANGE_ME}"   # KbaCreateCallback "Select a security question" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_KBA_ANSWER:=CHANGE_ME}"   # KbaCreateCallback "Select a security question" — step 1, Registration / Page Node (Sign Up)
+: "\${IN_ACCEPT_TERMS:=true}"   # TermsAndConditionsCallback "Accept terms" — step 1, Registration / Page Node (Sign Up)
+
+JOURNEY='Registration'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+# Step 1 – submit: Page Node (Sign Up)
+#   Choose a username, enter your first name, enter your last name, enter your email address, choose whether to receive marketing emails, choose
+step_1() {
+  check 1 'ValidatedCreateUsernameCallback,StringAttributeInputCallback,StringAttributeInputCallback,StringAttributeInputCallback,BooleanAttributeInputCallback,BooleanAttributeInputCallback,ValidatedCreatePasswordCallback,KbaCreateCallback,TermsAndConditionsCallback'
+  set_str 0 0 "$IN_USERNAME"
+  set_str 1 0 "$IN_GIVENNAME"
+  set_str 2 0 "$IN_SN"
+  set_str 3 0 "$IN_MAIL"
+  set_json 4 0 "$IN_PREF_MARKETING"
+  set_json 5 0 "$IN_PREF_UPDATES"
+  set_str 6 0 "$IN_PASSWORD"
+  set_str 7 0 "$IN_KBA_QUESTION"
+  set_str 7 1 "$IN_KBA_ANSWER"
+  set_json 8 0 "$IN_ACCEPT_TERMS"
+  submit
+}
+
+# Step 2 – suspend: Email Suspend Node
+#   Check your email and click the link to continue
+step_2() {
+  check 2 'SuspendedTextOutputCallback'
+  suspended 2
+}
+
+# ---- run ---------------------------------------------------------------------------------------
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  URL="$URL&suspendedId=$SUSPENDED_ID"
+  START="\${RESUME_AT:-3}"
+fi
+RESP="$(post '{}')"
+for ((n = START; n <= 2; n++)); do "step_$n"; done
+finish
+"
+`;
+
+exports[`sh generator > UpdatePassword.sh with --with-session Login 1`] = `
+"#!/usr/bin/env bash
+# UpdatePassword — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: PARTIAL   Steps: 2
+#   - Step 1 may stop for an email link (variant false)
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./UpdatePassword.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+#         SUSPENDED_ID=<id from the email link> ./UpdatePassword.sh   resumes at step 2.
+# Needs:  bash 4+, curl, jq 1.6+
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_USERNAME:=CHANGE_ME}"   # NameCallback "User Name" — step 1, Login / Page Node (Sign In)
+: "\${IN_PASSWORD:=CHANGE_ME}"   # PasswordCallback "Password" — step 1, Login / Page Node (Sign In)
+: "\${IN_PREF_UPDATES:=false}"   # BooleanAttributeInputCallback "preferences/updates" — step 2, ProgressiveProfile / Page Node (Please select your preferences)
+: "\${IN_PREF_MARKETING:=false}"   # BooleanAttributeInputCallback "preferences/marketing" — step 2, ProgressiveProfile / Page Node (Please select your preferences)
+: "\${IN_NEW_PASSWORD:=CHANGE_ME}"   # ValidatedCreatePasswordCallback "Password" — step 2, UpdatePassword / Page Node (Update Password)
+
+JOURNEY='UpdatePassword'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+# ---- session: run Login first (--with-session) -------------------------------------
+# Step s1 – submit: Page Node (Sign In)
+#   Sign in with your username and password
+step_s1() {
+  check s1 'NameCallback,PasswordCallback'
+  set_str 0 0 "$IN_USERNAME"
+  set_str 1 0 "$IN_PASSWORD"
+  submit
+}
+
+# Step s2 – optional: ProgressiveProfile / Page Node (Please select your preferences)
+#   If asked: choose whether to receive updates and choose whether to receive marketing emails (only when it is login number 3, and the user mat
+step_s2() {
+  if [[ "$(types)" == 'BooleanAttributeInputCallback,BooleanAttributeInputCallback' ]]; then
+    set_json 0 0 "$IN_PREF_UPDATES"
+    set_json 1 0 "$IN_PREF_MARKETING"
+    submit
+  else
+    log "step s2 skipped (optional: only when it is login number 3, and the user matches \\"!(/preferences pr) or /preferences/marketing eq false or /preferences/updates eq false\\")"
+  fi
+}
+
+run_session() {
+  local main_url="$URL"
+  URL="$(auth_url 'Login')"
+  RESP="$(post '{}')"
+  step_s1
+  step_s2
+  if ! done_ok; then say "✘ session journey Login did not succeed"; finish; fi
+  say "✔ session from Login"
+  URL="$main_url"
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+# Step 1 – variant: Attribute Present Decision
+#   The system gives you one of 2 quick challenges (true, false) and checks your answer
+step_1() {
+  case "$(types)" in
+    'PasswordCallback')   # true: Password
+      set_str 0 0 "$IN_PASSWORD"
+      submit ;;
+    'SuspendedTextOutputCallback')   # false: An email has been sent to your address, please verify your email address to update your password. Click the link in that email to proceed.
+      suspended 1 ;;
+    *) unexpected 1 'PasswordCallback | SuspendedTextOutputCallback' ;;
+  esac
+}
+
+# Step 2 – submit: Page Node (Update Password)
+#   Choose a password
+step_2() {
+  check 2 'ValidatedCreatePasswordCallback'
+  set_str 0 0 "$IN_NEW_PASSWORD"
+  submit
+}
+
+# ---- run ---------------------------------------------------------------------------------------
+run_session
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  URL="$URL&suspendedId=$SUSPENDED_ID"
+  START="\${RESUME_AT:-2}"
+fi
+RESP="$(post '{}')"
+for ((n = START; n <= 2; n++)); do "step_$n"; done
+finish
+"
+`;
+
+exports[`sh generator > frAuth2.sh 1`] = `
+"#!/usr/bin/env bash
+# frAuth2 — generated by bkj2c from all-journeys-alpha.json
+# Target: success   Coverage: PARTIAL   Steps: 3
+#   - Step 3 needs IN_TOTP_SECRET or IN_OTP (one-time code)
+#
+# Usage:  IN_USERNAME=... IN_PASSWORD=... ./frAuth2.sh
+#         VERBOSE=1 prints every request and response (may include secrets).
+# Needs:  bash 4+, curl, jq 1.6+, oathtool (only for IN_TOTP_SECRET)
+
+set -euo pipefail
+
+: "\${TENANT:=https://tenant.example.com}"
+: "\${REALM:=alpha}"
+: "\${VERBOSE:=0}"
+: "\${IN_USERNAME:=CHANGE_ME}"   # NameCallback "User Name" — step 1, test-journeys-001 / Platform Username
+: "\${IN_PASSWORD:=CHANGE_ME}"   # PasswordCallback "Password" — step 2, test-journeys-001 / Platform Password
+: "\${IN_OTP:=CHANGE_ME}"   # NameCallback "Enter verification code" — step 3, frAuth2 / OATH Token Verifier
+: "\${IN_OTP_ACTION:=0}"   # ConfirmationCallback — step 3, frAuth2 / OATH Token Verifier
+: "\${IN_TOTP_SECRET:=}"   # Base32 TOTP secret; when set the script computes the code with oathtool
+
+JOURNEY='frAuth2'
+TARGET=success
+
+for cmd in curl jq; do
+  command -v "$cmd" >/dev/null 2>&1 || { echo "bkj2c: '$cmd' is required" >&2; exit 4; }
+done
+
+say() { printf '%s\\n' "$*" >&2; }
+log() { if [[ "$VERBOSE" == 1 ]]; then printf '%s\\n' "$*" >&2; fi; }
+
+realm_path() {
+  local r="\${REALM#/}"
+  if [[ -z "$r" || "$r" == root ]]; then echo "realms/root"; else echo "realms/root/realms/\${r//\\//\\/realms\\/}"; fi
+}
+auth_url() { echo "\${TENANT%/}/am/json/$(realm_path)/authenticate?authIndexType=service&authIndexValue=$1"; }
+
+COOKIES="$(mktemp)"
+trap 'rm -f "$COOKIES"' EXIT
+URL="$(auth_url "$JOURNEY")"
+RESP=''
+
+# post <json> [curl args...]: POST to the current journey URL, keeping the session in the cookie jar.
+post() {
+  local body="$1"; shift
+  log ">>> POST $URL"
+  log "$body"
+  local out
+  out="$(curl -sS -X POST "$URL" \\
+    -H 'Content-Type: application/json' \\
+    -H 'Accept-API-Version: resource=2.0, protocol=1.0' \\
+    -b "$COOKIES" -c "$COOKIES" "$@" --data-binary @- <<<"$body")" || { say "✘ curl failed"; exit 4; }
+  log "<<< $out"
+  printf '%s' "$out"
+}
+submit() { RESP="$(post "$RESP")"; }
+types() { jq -r '[.callbacks[]?.type] | join(",")' <<<"$RESP"; }
+done_ok() { jq -e '.tokenId' <<<"$RESP" >/dev/null 2>&1; }
+
+# set_str / set_json / set_jq <callback> <input> <value | json | jq expression>
+set_str() { RESP="$(jq --arg v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_json() { RESP="$(jq --argjson v "$3" ".callbacks[$1].input[$2].value = \\$v" <<<"$RESP")"; }
+set_jq() { RESP="$(jq ".callbacks[$1].input[$2].value = ($3)" <<<"$RESP")"; }
+
+finish() {
+  if done_ok; then
+    if [[ "$TARGET" == failure ]]; then say "✘ $JOURNEY: reached Success, but the plan targets Failure"; exit 1; fi
+    say "✔ $JOURNEY: success"
+    jq '{tokenId, successUrl, realm}' <<<"$RESP"
+    exit 0
+  fi
+  local got; got="$(types)"
+  if [[ -n "$got" ]]; then say "✘ $JOURNEY: the journey still asks for [$got]"; jq . <<<"$RESP" >&2; exit 2; fi
+  if [[ "$TARGET" == failure ]]; then say "✔ $JOURNEY: failed as planned ($(jq -r '.message // .code' <<<"$RESP"))"; exit 0; fi
+  say "✘ $JOURNEY: $(jq -r '"\\(.code // "?") \\(.message // "unknown error")"' <<<"$RESP")"
+  exit 1
+}
+
+# unexpected <step> <expected>: stop with a clear message when the server sends something else.
+unexpected() {
+  if done_ok; then say "step $1: the journey finished early (expected [$2])"; finish; fi
+  local got; got="$(types)"
+  if [[ -z "$got" ]]; then
+    say "✘ step $1: $(jq -r '"\\(.code // "?") \\(.reason // "") \\(.message // .)"' <<<"$RESP")"
+    exit 1
+  fi
+  say "✘ step $1: expected [$2] but got [$got]"
+  jq . <<<"$RESP" >&2
+  exit 2
+}
+check() { [[ "$(types)" == "$2" ]] || unexpected "$1" "$2"; }
+
+suspended() {
+  say "⏸ step $1: $(jq -r '[.callbacks[]?.output[]? | select(.name == "message") | .value] | first // "suspended"' <<<"$RESP")"
+  say "  Open the link from the email in a browser, or copy its suspendedId and run:"
+  say "    SUSPENDED_ID=<id> $0"
+  exit 3
+}
+
+manual() {
+  say "✋ step $1 needs a person: $2"
+  say "  Last response:"
+  jq . <<<"$RESP" >&2
+  exit 5
+}
+
+poll() {
+  while [[ "$(types)" == *PollingWaitCallback* ]]; do
+    local ms
+    ms="$(jq -r '[.callbacks[]?.output[]? | select(.name == "waitTime") | .value] | first // 5000' <<<"$RESP")"
+    log "polling: waiting \${ms} ms"
+    sleep "$(( \${ms%%.*} / 1000 ))"
+    submit
+  done
+}
+
+otp_code() {
+  if [[ -n "\${IN_OTP:-}" && "$IN_OTP" != CHANGE_ME ]]; then printf '%s' "$IN_OTP"; return; fi
+  if [[ -n "\${IN_TOTP_SECRET:-}" ]] && command -v oathtool >/dev/null 2>&1; then oathtool --totp -b "$IN_TOTP_SECRET"; return; fi
+  say "✘ a one-time code is needed: set IN_OTP, or IN_TOTP_SECRET with oathtool installed"
+  exit 6
+}
+
+# ---- steps -------------------------------------------------------------------------------------
+# Step 1 – submit: test-journeys-001 / Platform Username
+#   Enter your username
+step_1() {
+  check 1 'NameCallback'
+  set_str 0 0 "$IN_USERNAME"
+  submit
+}
+
+# Step 2 – submit: test-journeys-001 / Platform Password
+#   Enter your password
+step_2() {
+  check 2 'PasswordCallback'
+  set_str 0 0 "$IN_PASSWORD"
+  submit
+}
+
+# Step 3 – submit: OATH Token Verifier
+#   Enter enter verification code and choose Submit or Use Recovery Code
+step_3() {
+  check 3 'NameCallback,ConfirmationCallback'
+  set_str 0 0 "$(otp_code)"
+  set_json 1 0 "$IN_OTP_ACTION"
+  submit
+}
+
+# ---- run ---------------------------------------------------------------------------------------
+START=1
+if [[ -n "\${SUSPENDED_ID:-}" ]]; then
+  say "this journey has no suspend step"; exit 4
+fi
+RESP="$(post '{}')"
+for ((n = START; n <= 3; n++)); do "step_$n"; done
+finish
+"
+`;

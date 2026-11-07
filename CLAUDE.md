@@ -119,6 +119,13 @@ export JSON (+ bk.config.json)
 - Solvers are jq expressions (`env`, `math-sum`, `echo-text`, `echo-hidden`, optional `totp`). Variants are matched by callback-type signature.
 - Secrets: inputs only through `IN_*` env vars. Nothing is written to disk except the cookie jar, which is deleted on exit.
 
+### Implementation notes (M1)
+
+- Extra modules beyond the design: `src/config.ts`, `src/analyze/inputs.ts` (IN_* naming), `src/analyze/catalog/{types,callbacks,script-scan}.ts`, `src/format/plan-text.ts`, `src/templates/index.ts` (eta loader).
+- Planner = Dijkstra, not plain BFS. Nodes with `branching: 'preferred'` penalise negative outcomes. `branching: 'server'` nodes have no preference. Entering an interactive node costs +3, so data-driven branches avoid extra pages.
+- Branch analysis at server-decided nodes: every branch has 1 step → `variant` step; the chosen branch has 0 steps → the other branch's steps become `optional`; otherwise a warning to use `--choose`. Pinning a server node with `--choose` turns this off and adds an info warning.
+- Generated bash: one `step_N` function per step. `SUSPENDED_ID` resumes after the first suspend step. `--with-session` adds `step_sN` functions and `run_session`.
+
 ### Layout (planned)
 
 ```text
@@ -143,7 +150,25 @@ Keep the dependency list short. Ask before adding a library that is not listed h
 
 ### Commands
 
-The project has not been scaffolded yet. When `package.json` is added, fill in the real commands here (install, build CLI, build viewer, test, update snapshots, lint/format, run `bkj2c all <export.json> -o out/`).
+Package manager is **npm** (pnpm is not installed). npm 11 blocks install scripts; esbuild works without its postinstall.
+
+```bash
+npm install
+npm run build          # tsup -> dist/cli.js, dist/index.js; copies src/templates -> dist/templates
+npm run typecheck      # tsc --noEmit
+npm test               # vitest run (unit + snapshot + bash -n on every generated script)
+npm run test:update    # accept snapshot changes (review the diff first)
+npm run lint           # biome check .
+npm run format         # biome check --write .
+
+node dist/cli.js plan  test/fixtures/all-journeys-alpha.json [-j Login] [--choose "Node=outcome"] [--target failure] [--debug]
+node dist/cli.js paths test/fixtures/all-journeys-alpha.json -j DemoSignup
+node dist/cli.js gen   test/fixtures/all-journeys-alpha.json -o out --tenant https://<tenant> --realm alpha --with-session Login
+```
+
+Before committing: `npm run lint && npm run typecheck && npm test`.
+
+`jq` is not installed on this machine, so generated scripts can be syntax-checked (`bash -n`) but not run yet. Running them end to end is M4.
 
 ### Milestones
 
