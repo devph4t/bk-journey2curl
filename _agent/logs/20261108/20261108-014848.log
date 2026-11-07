@@ -48,3 +48,5 @@
 [2026-11-08 02:16:49 UTC+7] Fixes during M2: runbook body compact (one callback per line); variant plain text for data-driven variants; suspend variant shows resume curl; removed nested parentheses in variant note
 [2026-11-08 02:16:49 UTC+7] Wrote test/report.test.ts; first run 71/72 (UpdatePassword.sh snapshot changed only by the intended wording fix) -> updated snapshot; final: biome clean, tsc clean, vitest 72/72, build OK
 [2026-11-08 02:16:49 UTC+7] Plan 003 ticked + results, status Done (M2); CLAUDE.md commands updated; committing M2
+[2026-11-08 02:16:49 UTC+7] Committed M2 as 7b59bd9
+[2026-11-08 02:17:01 UTC+7] Corrected plan 003: runbook is built in TS (no runbook.md.eta). Stopping after M2 for user review; open question for M3: viewer default Simple vs Engineer view; M4 needs jq installed
