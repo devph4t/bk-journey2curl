@@ -140,6 +140,8 @@ export JSON (+ bk.config.json)
 src/cli.ts                      commands: plan | paths | gen | report | all
 src/index.ts                    library exports
 src/config.ts                   bk.config.json (zod)
+src/env.ts                      .env loading + BKJ2C_* settings
+scripts/serve.mjs               npm run web: static server for the output folder
 src/load/                       detect.ts, loader.ts, script-decode.ts
 src/model/                      types.ts (shared with viewer: plan, curl blocks, viewer data), schema.ts (zod)
 src/analyze/catalog/            index.ts (registry, Page Node), platform.ts, flow.ts, mfa.ts, scripted.ts,
@@ -158,7 +160,7 @@ _agent/plan/, _agent/logs/      Claude's plans and activity logs (git-ignored)
 
 ### Stack
 
-Node 20+ (developed on Node 26), TypeScript 5.9 (strict), commander 13, zod 4, eta 3, Preact 10, Vite 6 + vite-plugin-singlefile, tsup 8, vitest 3 (+ snapshots), Biome 2. The design's elkjs layout fallback is replaced by a small column layout in `viewer-data.ts` (no extra dependency). Generated scripts need bash 4+, curl and jq 1.6+. Optional: `@rockcarver/frodo-lib`, `otplib`.
+Node 20.12+ (developed on Node 26), TypeScript 5.9 (strict), commander 13, zod 4, eta 3, Preact 10, Vite 6 + vite-plugin-singlefile, tsup 8, vitest 3 (+ snapshots), Biome 2. The design's elkjs layout fallback is replaced by a small column layout in `viewer-data.ts` (no extra dependency). Generated scripts need bash 4+, curl and jq 1.6+. Optional: `@rockcarver/frodo-lib`, `otplib`.
 
 Keep the dependency list short. Ask before adding a library that is not listed here.
 
@@ -176,12 +178,18 @@ npm run test:update    # accept snapshot changes (review the diff first)
 npm run lint           # biome check .
 npm run format         # biome check --write .
 
+npm run gen            # bkj2c all with settings from .env (BKJ2C_TENANT, BKJ2C_EXPORT, BKJ2C_OUT ...)
+npm run web            # serve BKJ2C_OUT on http://localhost:BKJ2C_PORT (scripts/serve.mjs, 127.0.0.1 only)
+npm start              # build + gen + web
+
 node dist/cli.js plan  test/fixtures/all-journeys-alpha.json [-j Login] [--choose "Node=outcome"] [--target failure] [--debug]
 node dist/cli.js paths test/fixtures/all-journeys-alpha.json -j DemoSignup
 node dist/cli.js gen    test/fixtures/all-journeys-alpha.json -o out --tenant https://<tenant> --realm alpha --with-session Login   # .sh + .runbook.md
 node dist/cli.js report test/fixtures/all-journeys-alpha.json -o out --min-coverage partial   # index.html, report.json, report.md; exit 2 if below
 node dist/cli.js all    test/fixtures/all-journeys-alpha.json -o out --with-session Login     # gen + report
 ```
+
+Settings: flag > environment/`.env` (`src/env.ts`, loaded with Node's `util.parseEnv`, real env wins) > `bk.config.json` > default. `.env` is git-ignored and holds the user's tenant; `.env.example` is committed and must only contain placeholders. Never commit `.env` or print `IN_*` values from it.
 
 File writing lives in `src/generate/write.ts` (`writeJourneyFiles`, `writeReport`), so tests call it without the CLI.
 

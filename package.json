@@ -13,7 +13,7 @@
     "README.md"
   ],
   "engines": {
-    "node": ">=20"
+    "node": ">=20.12"
   },
   "scripts": {
     "build": "vite build -c viewer/vite.config.ts --logLevel warn && tsup",
@@ -26,7 +26,10 @@
     "format": "biome check --write .",
     "bkj2c": "node dist/cli.js",
     "build:viewer": "vite build -c viewer/vite.config.ts",
-    "dev:viewer": "vite -c viewer/vite.config.ts"
+    "dev:viewer": "vite -c viewer/vite.config.ts",
+    "gen": "node dist/cli.js all",
+    "web": "node scripts/serve.mjs",
+    "start": "npm run build && npm run gen && npm run web"
   },
   "license": "MIT",
   "private": true,

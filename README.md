@@ -13,7 +13,7 @@ Everything is generated **offline** from the export file. Only the generated cur
 
 ## Install and build
 
-Needs Node.js 20 or later.
+Needs Node.js 20.12 or later.
 
 ```bash
 npm install
@@ -23,10 +23,43 @@ npm run build
 The generated scripts need **bash 4+, curl and jq 1.6+** (Git Bash on Windows works; install jq separately,
 for example `winget install jqlang.jq`).
 
+## Quick start with `.env`
+
+Keep your settings (tenant domain, realm, export file, output folder, port) in `.env` so you don't type them
+every time. `.env` is git-ignored; [.env.example](.env.example) is the committed template.
+
+```bash
+cp .env.example .env      # then set BKJ2C_TENANT=https://openam-<your-tenant>.forgeblocks.com
+npm start                 # build + generate everything + serve it on http://localhost:5174
+```
+
+Or step by step:
+
+```bash
+npm run build             # build the CLI and the flow page
+npm run gen               # bkj2c all, with the values from .env
+npm run web               # open http://localhost:5174 (BKJ2C_PORT); Ctrl+C to stop
+```
+
+| Variable | Used for | Default |
+| --- | --- | --- |
+| `BKJ2C_TENANT` | Tenant base URL in the generated curl commands | `https://CHANGE_ME.forgeblocks.com` |
+| `BKJ2C_REALM` | Realm | `alpha` |
+| `BKJ2C_EXPORT` | Export file when none is given on the command line | (required if no file is given) |
+| `BKJ2C_OUT` | Output folder (also what `npm run web` serves) | `out` |
+| `BKJ2C_WITH_SESSION` | Journey to run first for journeys that need a session | (none) |
+| `BKJ2C_MIN_COVERAGE` | Make `report`/`all` exit 2 below `full`, `partial` or `manual` | (off) |
+| `BKJ2C_PORT` | Port for `npm run web` | `5174` |
+| `BKJ2C_ENV_FILE` | Read another file instead of `.env` (set it in the shell) | `.env` |
+
+Command-line flags win over `.env`, and values already set in your shell win over the file.
+`.env` can also hold `IN_USERNAME`, `IN_PASSWORD` ... for running the scripts: load them with
+`set -a; source .env; set +a`. bkj2c never copies `IN_*` values into generated files.
+
 ## Use
 
 ```bash
-# Everything: scripts, runbooks, flow pages and the report
+# Everything: scripts, runbooks, flow pages and the report (the export file can come from BKJ2C_EXPORT)
 node dist/cli.js all export.json -o out --tenant https://openam-xyz.forgeblocks.com --realm alpha --with-session Login
 
 # Only look at the planned path of a journey
