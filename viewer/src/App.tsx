@@ -83,7 +83,7 @@ export function App({ data }: { data: ViewerData }) {
   };
 
   if (!canvas || !b) return <p class="empty">No journey data.</p>;
-  const path = data.canvases.map((c) => c.journey);
+  const path = data.canvases;
 
   return (
     <div class={`app mode-${mode}`}>
@@ -127,9 +127,15 @@ export function App({ data }: { data: ViewerData }) {
 
       {path.length > 1 && (
         <nav class="journeys" aria-label="Journeys">
-          {path.map((j) => (
-            <button key={j} type="button" class={j === journey ? 'on' : ''} onClick={() => setJourney(j)}>
-              {j === data.journey ? j : `↳ ${j}`}
+          {data.canvases.map((c) => (
+            <button
+              key={c.journey}
+              type="button"
+              class={`${c.journey === journey ? 'on' : ''}${c.offPath ? ' off' : ''}`}
+              title={c.offPath ? 'Sub-journey that is not on the planned path' : undefined}
+              onClick={() => setJourney(c.journey)}
+            >
+              {c.journey === data.journey ? c.journey : `↳ ${c.journey}`}
             </button>
           ))}
         </nav>

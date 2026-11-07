@@ -80,9 +80,28 @@ node dist/cli.js report export.json -o out --min-coverage partial
 | `gen` | Writes `.sh`, `.runbook.md` and `.html` per journey |
 | `report` | Writes `index.html`, `report.json`, `report.md` |
 | `all` | `gen` + `report` |
+| `inspect` | Summarises the export's structure: journeys found / loaded / skipped, sub-journeys, library scripts, unknown node types. `--redact` hides names |
 
 Common options: `-j <journey>` (repeatable), `--choose "<node>=<outcome>"` (repeatable, `Journey/Node=outcome`
-for inner journeys), `--target failure`, `-c bk.config.json`, `--debug`.
+for inner journeys), `--target failure`, `-c bk.config.json`, `--exclude-inner` (skip sub-journeys),
+`-q` (no loader warnings), `--debug`.
+
+### Large exports, sub-journeys and library scripts
+
+- Every journey in the export is processed, including sub-journeys marked "inner tree only". The report shows
+  them as "sub-journey of X"; `--exclude-inner` hides them.
+- Each run starts with a line such as `export.json: 40 of 41 journeys loaded (12 inner-tree-only), 85 scripts
+  (9 libraries)`, followed by anything skipped and why. The report has a "Not loaded" list too.
+- A journey with odd fields (missing positions, a broken connection) is kept and a warning says what was
+  ignored. A journey is only skipped when the export entry has no tree at all.
+- Scripted nodes that build their callbacks in **library scripts** (`require('MyLib')`) are followed into the
+  library: `lib.fn(callbacksBuilder, 'Prompt')`, `const { fn } = require('MyLib')`, helper functions and
+  builder aliases are all understood. Libraries missing from the export, callbacks built in loops or under
+  conditions are reported as warnings; the generated script's type check catches anything the scan got wrong.
+- The flow page has a tab for every sub-journey the journey can run, also those off the planned path (dashed).
+
+If a journey is still missing or looks wrong, run `bkj2c inspect --redact` and share its output: it contains only
+counts, node types and placeholder names (J1, L1 ...), never script code, prompts or configuration values.
 
 Supported exports: Platform Admin UI (format 1.1), Frodo (single or multi), a single tree bundle, and raw AM
 trees (no canvas positions: the flow page lays nodes out in columns).

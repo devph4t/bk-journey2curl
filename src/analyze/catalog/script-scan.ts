@@ -36,6 +36,18 @@ export interface ScriptScan {
   /** Outcome id -> input value that leads to it. */
   links: Record<string, OutcomeLink>;
   usesRandom: boolean;
+  /** Library scripts followed through require('...'). */
+  libraries: string[];
+  /** require('...') names not found in the export. */
+  missingLibraries: string[];
+  /** lib.fn names that were called but not found in the library. */
+  missingFunctions: string[];
+  /** Some callbacks are built inside a loop: their number depends on run-time data. */
+  builtInLoop: boolean;
+  /** Some callbacks are built only under a condition (besides the usual callbacks.isEmpty() split). */
+  builtConditionally: boolean;
+  /** Callbacks were found but could not be ordered (no call path from the top level). */
+  unordered: boolean;
 }
 
 const BUILDER_TYPES: Record<string, string> = {
@@ -302,7 +314,7 @@ function readerAt(toks: Tok[], i: number): { type: string; nth: number } | undef
   // callbacks . getChoiceCallbacks ( ) . get ( N )
   if (!isId(toks[i], 'callbacks') || !isP(toks[i + 1], '.')) return undefined;
   const fn = toks[i + 2]?.v ?? '';
-  const type = READER_TYPES[fn];
+  const type = Object.hasOwn(READER_TYPES, fn) ? READER_TYPES[fn] : undefined;
   if (!type) return undefined;
   if (!isP(toks[i + 3], '(') || !isP(toks[i + 4], ')') || !isP(toks[i + 5], '.') || !isId(toks[i + 6], 'get'))
     return undefined;
@@ -310,44 +322,374 @@ function readerAt(toks: Tok[], i: number): { type: string; nth: number } | undef
   return { type, nth: Number.isFinite(nth) ? nth : 0 };
 }
 
-export function scanScript(source: string): ScriptScan {
+/** Where library sources come from: `require('name')` -> source, or undefined when not in the export. */
+export interface ScanContext {
+  library?: (name: string) => string | undefined;
+}
+
+interface FnDef {
+  params: string[];
+  /** Index of the body's `{` and its matching `}`. */
+  open: number;
+  close: number;
+}
+
+interface Unit {
+  name: string;
+  toks: Tok[];
+  scope: Scope;
+  fns: Map<string, FnDef>;
+  /** `{` indexes that start a function body (skipped when walking the code around them). */
+  bodies: Map<number, number>;
+  /** var -> library name, for `var lib = require('Lib')`. */
+  requires: Map<string, string>;
+  /** local name -> library function, for `const { ask } = require('Lib')`. */
+  imported: Map<string, { lib: string; fn: string }>;
+  /** Builder-call index -> built inside a loop / a condition. */
+  flags: Map<number, { loop: boolean; conditional: boolean }>;
+}
+
+const NOT_FUNCTION_NAMES = new Set(['if', 'for', 'while', 'switch', 'catch', 'function', 'return', 'typeof', 'new']);
+
+/** Index of the `(` matching the `)` at `close`. */
+function opener(toks: Tok[], close: number): number {
+  let depth = 0;
+  for (let i = close; i >= 0; i--) {
+    if (isP(toks[i], ')')) depth++;
+    else if (isP(toks[i], '(')) {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function paramsAt(toks: Tok[], open: number): string[] {
+  const close = closing(toks, open);
+  return splitArgs(toks.slice(open + 1, close)).flatMap((a) => (a[0]?.k === 'id' ? [a[0].v] : []));
+}
+
+function findFunctions(toks: Tok[]): { fns: Map<string, FnDef>; bodies: Map<number, number> } {
+  const fns = new Map<string, FnDef>();
+  const bodies = new Map<number, number>();
+  const add = (name: string | undefined, paren: number) => {
+    const closeParen = closing(toks, paren);
+    let open = closeParen + 1;
+    if (isP(toks[open], '=>')) open++;
+    if (!isP(toks[open], '{')) return;
+    const close = closing(toks, open);
+    // Only named functions run "later, when called"; an anonymous function passed as an argument
+    // (xs.forEach(function (x) { ... })) is walked where it appears.
+    if (!name) return;
+    bodies.set(open, close);
+    if (!fns.has(name)) fns.set(name, { params: paramsAt(toks, paren), open, close });
+  };
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    // function name(...) { }   |   function (...) { }
+    if (isId(t, 'function')) {
+      const named = toks[i + 1]?.k === 'id' ? toks[i + 1] : undefined;
+      const paren = named ? i + 2 : i + 1;
+      if (!isP(toks[paren], '(')) continue;
+      // name = function (...)  |  name: function (...)  |  exports.name = function (...)
+      const assigned = isP(toks[i - 1], '=') || isP(toks[i - 1], ':') ? toks[i - 2] : undefined;
+      add(named?.v ?? (assigned?.k === 'id' ? assigned.v : undefined), paren);
+      continue;
+    }
+    // name = (...) => { }   |   name: (a) => { }   |   name = a => { }
+    if (t?.k === 'id' && (isP(toks[i + 1], '=') || isP(toks[i + 1], ':'))) {
+      const p = i + 2;
+      if (isP(toks[p], '(')) {
+        const after = closing(toks, p) + 1;
+        if (isP(toks[after], '=>')) add(t.v, p);
+      } else if (toks[p]?.k === 'id' && isP(toks[p + 1], '=>') && isP(toks[p + 2], '{')) {
+        const close = closing(toks, p + 2);
+        bodies.set(p + 2, close);
+        if (!fns.has(t.v)) fns.set(t.v, { params: [toks[p]?.v ?? ''], open: p + 2, close });
+      }
+      continue;
+    }
+    // Object shorthand method:  { ask(cb, label) { } }
+    if (
+      t?.k === 'id' &&
+      !NOT_FUNCTION_NAMES.has(t.v) &&
+      isP(toks[i + 1], '(') &&
+      (isP(toks[i - 1], '{') || isP(toks[i - 1], ','))
+    ) {
+      const after = closing(toks, i + 1) + 1;
+      if (isP(toks[after], '{')) add(t.v, i + 1);
+    }
+  }
+  return { fns, bodies };
+}
+
+function findRequires(toks: Tok[]): Pick<Unit, 'requires' | 'imported'> {
+  const requires = new Map<string, string>();
+  const imported = new Map<string, { lib: string; fn: string }>();
+  for (let i = 0; i < toks.length; i++) {
+    if (!isId(toks[i], 'require') || !isP(toks[i + 1], '(') || toks[i + 2]?.k !== 'str' || !isP(toks[i - 1], '=')) {
+      continue;
+    }
+    const lib = toks[i + 2]?.v ?? '';
+    const target = toks[i - 2];
+    if (target?.k === 'id') requires.set(target.v, lib);
+    else if (isP(target, '}')) {
+      // const { a, b: c } = require('Lib')
+      let j = i - 3;
+      while (j >= 0 && !isP(toks[j], '{')) j--;
+      for (const part of splitArgs(toks.slice(j + 1, i - 2))) {
+        const fn = part[0]?.v;
+        const local = isP(part[1], ':') ? part[2]?.v : fn;
+        if (fn && local) imported.set(local, { lib, fn });
+      }
+    }
+  }
+  return { requires, imported };
+}
+
+const isBuilderMethod = (toks: Tok[], i: number) =>
+  isP(toks[i - 1], '.') &&
+  toks[i]?.k === 'id' &&
+  Object.hasOwn(BUILDER_TYPES, toks[i]?.v ?? '') &&
+  isP(toks[i + 1], '(');
+
+/** `xs.forEach(function (x) { cb.nameCallback(x) })`: a builder call inside a function passed to forEach/map. */
+function insideIteration(toks: Tok[], i: number): boolean {
+  let depth = 0;
+  for (let j = i - 1; j >= 0; j--) {
+    const t = toks[j];
+    if (isP(t, ')') || isP(t, '}') || isP(t, ']')) depth++;
+    else if (isP(t, '(') || isP(t, '{') || isP(t, '[')) {
+      if (depth > 0) depth--;
+      else if (isP(t, '(') && (isId(toks[j - 1], 'forEach') || isId(toks[j - 1], 'map'))) return true;
+    }
+  }
+  return false;
+}
+
+/** Mark builder calls that sit inside a loop or a condition (other than the usual `callbacks.isEmpty()` split). */
+function blockFlags(toks: Tok[]): Unit['flags'] {
+  const flags: Unit['flags'] = new Map();
+  type Kind = 'loop' | 'cond' | 'send' | 'other';
+  const stack: Kind[] = [];
+  let lastIf: Kind = 'other';
+  for (let i = 0; i < toks.length; i++) {
+    const t = toks[i];
+    if (isP(t, '{')) {
+      let kind: Kind = 'other';
+      const prev = toks[i - 1];
+      if (isP(prev, ')')) {
+        const o = opener(toks, i - 1);
+        const kw = toks[o - 1];
+        if (isId(kw, 'for') || isId(kw, 'while')) kind = 'loop';
+        else if (isId(kw, 'if')) kind = toks.slice(o, i - 1).some((x) => isId(x, 'isEmpty')) ? 'send' : 'cond';
+        else if (isId(kw, 'switch')) kind = 'cond';
+      } else if (isId(prev, 'else')) kind = lastIf === 'send' ? 'other' : 'cond';
+      else if (isId(prev, 'do')) kind = 'loop';
+      stack.push(kind);
+      continue;
+    }
+    if (isP(t, '}')) {
+      const k = stack.pop();
+      if (k === 'send' || k === 'cond') lastIf = k;
+      continue;
+    }
+    if (isBuilderMethod(toks, i)) {
+      flags.set(i, {
+        loop: stack.includes('loop') || insideIteration(toks, i),
+        conditional: stack.includes('cond'),
+      });
+    }
+  }
+  return flags;
+}
+
+function parseUnit(name: string, source: string): Unit {
   const toks = tokenize(source);
-  const scope = collectScope(toks);
+  return {
+    name,
+    toks,
+    scope: collectScope(toks),
+    ...findFunctions(toks),
+    ...findRequires(toks),
+    flags: blockFlags(toks),
+  };
+}
+
+function childScope(scope: Scope, params: string[], args: unknown[]): Scope {
+  const s: Scope = { arrays: new Map(scope.arrays), strings: new Map(scope.strings) };
+  params.forEach((p, k) => {
+    const v = args[k];
+    s.arrays.delete(p);
+    s.strings.delete(p);
+    if (Array.isArray(v)) s.arrays.set(p, v as string[]);
+    else if (typeof v === 'string') s.strings.set(p, v);
+  });
+  return s;
+}
+
+class CallbackWalker {
+  readonly callbacks: ScannedCallback[] = [];
+  readonly libraries = new Set<string>();
+  readonly missingLibraries = new Set<string>();
+  readonly missingFunctions = new Set<string>();
+  loop = false;
+  conditional = false;
+  private readonly units = new Map<string, Unit | null>();
+
+  constructor(private readonly ctx: ScanContext) {}
+
+  private library(name: string): Unit | undefined {
+    if (!this.units.has(name)) {
+      const src = this.ctx.library?.(name);
+      this.units.set(name, src === undefined ? null : parseUnit(name, src));
+      if (src === undefined) this.missingLibraries.add(name);
+      else this.libraries.add(name);
+    }
+    return this.units.get(name) ?? undefined;
+  }
+
+  private callLibrary(lib: string, fn: string, args: unknown[], depth: number, conditional: boolean): void {
+    const unit = this.library(lib);
+    if (!unit) return;
+    const def = unit.fns.get(fn);
+    if (!def) {
+      this.missingFunctions.add(`${lib}.${fn}`);
+      return;
+    }
+    this.walk(unit, def.open + 1, def.close, childScope(unit.scope, def.params, args), depth + 1, conditional);
+  }
+
+  /** Walk tokens [start, end) in execution order, following local functions and library calls. */
+  walk(u: Unit, start: number, end: number, scope: Scope, depth = 0, conditionalCall = false): void {
+    if (depth > 8) return;
+    const argsAt = (paren: number) => {
+      const close = closing(u.toks, paren);
+      return { close, args: splitArgs(u.toks.slice(paren + 1, close)).map((a) => evalArg(a, scope)) };
+    };
+    for (let i = start; i < end; i++) {
+      const skip = u.bodies.get(i);
+      if (skip !== undefined) {
+        i = skip;
+        continue;
+      }
+      const t = u.toks[i];
+
+      // <anything>.nameCallback(...)  (callbacksBuilder, an alias or a parameter)
+      if (isBuilderMethod(u.toks, i)) {
+        const fn = t?.v ?? '';
+        const { close, args } = argsAt(i + 1);
+        this.callbacks.push(callbackFromArgs(BUILDER_TYPES[fn] ?? fn, args));
+        const f = u.flags.get(i);
+        if (f?.loop) this.loop = true;
+        if (f?.conditional || conditionalCall) this.conditional = true;
+        i = close;
+        continue;
+      }
+      // new [pkg.]FooCallback(...)  (legacy)
+      if (isId(t, 'new')) {
+        let j = i + 1;
+        while (u.toks[j + 1] && isP(u.toks[j + 1], '.') && u.toks[j + 2]?.k === 'id') j += 2;
+        const name = u.toks[j];
+        if (name?.k === 'id' && name.v.endsWith('Callback') && isP(u.toks[j + 1], '(')) {
+          const { close, args } = argsAt(j + 1);
+          this.callbacks.push(callbackFromArgs(name.v, args));
+          i = close;
+          continue;
+        }
+      }
+      if (t?.k !== 'id' || isP(u.toks[i - 1], '.') || isId(u.toks[i - 1], 'function')) continue;
+      const conditionalHere = conditionalCall || this.callIsConditional(u, i);
+
+      // lib.fn(...)
+      const lib = u.requires.get(t.v);
+      if (lib && isP(u.toks[i + 1], '.') && u.toks[i + 2]?.k === 'id' && isP(u.toks[i + 3], '(')) {
+        const { close, args } = argsAt(i + 3);
+        this.callLibrary(lib, u.toks[i + 2]?.v ?? '', args, depth, conditionalHere);
+        i = close;
+        continue;
+      }
+      if (!isP(u.toks[i + 1], '(')) continue;
+      // fn(...) from const { fn } = require('Lib')
+      const imp = u.imported.get(t.v);
+      if (imp) {
+        const { close, args } = argsAt(i + 1);
+        this.callLibrary(imp.lib, imp.fn, args, depth, conditionalHere);
+        i = close;
+        continue;
+      }
+      // localFunction(...)
+      const def = u.fns.get(t.v);
+      if (def && !(i > def.open && i < def.close)) {
+        const { close, args } = argsAt(i + 1);
+        this.walk(u, def.open + 1, def.close, childScope(scope, def.params, args), depth + 1, conditionalHere);
+        i = close;
+      }
+    }
+  }
+
+  /** A call site inside a condition or loop (other than the callbacks.isEmpty() split). */
+  private callIsConditional(u: Unit, i: number): boolean {
+    let depth = 0;
+    for (let j = i - 1; j >= 0; j--) {
+      const t = u.toks[j];
+      if (isP(t, '}')) depth++;
+      else if (isP(t, '{')) {
+        if (depth > 0) {
+          depth--;
+          continue;
+        }
+        if (u.bodies.has(j)) return false;
+        const prev = u.toks[j - 1];
+        if (isP(prev, ')')) {
+          const o = opener(u.toks, j - 1);
+          const kw = u.toks[o - 1];
+          if (isId(kw, 'if') && !u.toks.slice(o, j - 1).some((x) => isId(x, 'isEmpty'))) return true;
+          if (isId(kw, 'for') || isId(kw, 'while') || isId(kw, 'switch')) return true;
+        }
+      }
+    }
+    return false;
+  }
+}
+
+export function scanScript(source: string, ctx: ScanContext = {}): ScriptScan {
+  const unit = parseUnit('(node script)', source);
+  const { toks, scope } = unit;
   const readers = readerVars(toks);
+  const walker = new CallbackWalker(ctx);
+  walker.walk(unit, 0, toks.length, scope);
+
   const result: ScriptScan = {
-    callbacks: [],
+    callbacks: walker.callbacks,
     readsCallbacks: false,
     outcomes: [],
     dynamicGoTo: false,
     links: {},
     usesRandom: /Math\s*\.\s*random/.test(source),
+    libraries: [...walker.libraries],
+    missingLibraries: [...walker.missingLibraries],
+    missingFunctions: [...walker.missingFunctions],
+    builtInLoop: walker.loop,
+    builtConditionally: walker.conditional,
+    unordered: false,
   };
+
+  // Builder calls exist but none is reachable from the top level (e.g. a function that is never called
+  // directly): keep them in source order and say so.
+  if (!result.callbacks.length) {
+    for (let i = 0; i < toks.length; i++) {
+      if (!isBuilderMethod(toks, i)) continue;
+      const close = closing(toks, i + 1);
+      const args = splitArgs(toks.slice(i + 2, close)).map((a) => evalArg(a, scope));
+      result.callbacks.push(callbackFromArgs(BUILDER_TYPES[toks[i]?.v ?? ''] ?? '', args));
+      result.unordered = true;
+      i = close;
+    }
+  }
 
   for (let i = 0; i < toks.length; i++) {
     const t = toks[i];
-    // callbacksBuilder.nameCallback(...)
-    if (isId(t, 'callbacksBuilder') && isP(toks[i + 1], '.') && isP(toks[i + 3], '(')) {
-      const fn = toks[i + 2]?.v ?? '';
-      const type = BUILDER_TYPES[fn] ?? `${fn.charAt(0).toUpperCase()}${fn.slice(1)}`;
-      const end = closing(toks, i + 3);
-      const args = splitArgs(toks.slice(i + 4, end)).map((a) => evalArg(a, scope));
-      result.callbacks.push(callbackFromArgs(type, args));
-      i = end;
-      continue;
-    }
-    // new [pkg.]FooCallback(...)  (legacy)
-    if (isId(t, 'new')) {
-      let j = i + 1;
-      while (toks[j + 1] && isP(toks[j + 1], '.') && toks[j + 2]?.k === 'id') j += 2;
-      const name = toks[j];
-      if (name?.k === 'id' && name.v.endsWith('Callback') && isP(toks[j + 1], '(')) {
-        const end = closing(toks, j + 1);
-        const args = splitArgs(toks.slice(j + 2, end)).map((a) => evalArg(a, scope));
-        result.callbacks.push(callbackFromArgs(name.v, args));
-        i = end;
-        continue;
-      }
-    }
     // callbacks.getXCallbacks() / callbacks.get(...)  (reads submitted values)
     if (isId(t, 'callbacks') && isP(toks[i + 1], '.') && toks[i + 2]?.k === 'id' && toks[i + 2]?.v !== 'isEmpty') {
       result.readsCallbacks = true;

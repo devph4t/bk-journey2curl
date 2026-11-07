@@ -95,9 +95,17 @@ describe('loadExport', () => {
     expect(b.scripts.get('s1')?.source).toBe('var a = 1;\naction.goTo("x");');
   });
 
-  it('turns a broken bundle into a warning', () => {
-    const b = loadExport({ trees: { Bad: { tree: { nodes: {} } } } });
-    expect(b.journeys.size).toBe(0);
-    expect(b.warnings[0]).toMatchObject({ code: 'bad-bundle', journey: 'Bad' });
+  it('keeps a journey with problems and says what is wrong; skips only entries without a tree', () => {
+    const b = loadExport({ trees: { Bad: { tree: { nodes: {} } }, Junk: 42, NoTree: { meta: {} } } });
+    expect([...b.journeys.keys()]).toEqual(['Bad']);
+    expect(b.warnings[0]).toMatchObject({ code: 'bad-entry', journey: 'Bad' });
+    expect(b.stats).toEqual({
+      found: 3,
+      loaded: 1,
+      skipped: [
+        { name: 'Junk', reason: 'not an object' },
+        { name: 'NoTree', reason: 'no "tree" object' },
+      ],
+    });
   });
 });

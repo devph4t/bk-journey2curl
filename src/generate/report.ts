@@ -1,5 +1,5 @@
 import { signature } from '../analyze/catalog/callbacks.js';
-import type { Coverage, ExportMeta, Plan } from '../model/types.js';
+import type { Coverage, ExportBundle, ExportMeta, LoadStats, Plan } from '../model/types.js';
 import { render } from '../templates/index.js';
 import { journeyFiles } from './paths.js';
 
@@ -35,6 +35,10 @@ export interface JourneyReport {
   unreachable: string[];
   unknownTypes: string[];
   files: { sh: string; runbook: string; viewer: string };
+  /** Marked "inner tree only" in the export (a sub-journey). */
+  innerTreeOnly?: boolean;
+  /** Journeys that run this one through an Inner Tree Evaluator. */
+  usedBy?: string[];
 }
 
 export interface ReportData {
@@ -45,6 +49,8 @@ export interface ReportData {
   export: ExportMeta;
   summary: Record<Coverage, number> & { journeys: number };
   journeys: JourneyReport[];
+  /** What the loader found in the export (only when the bundle is passed). */
+  load?: LoadStats & { warnings: string[] };
 }
 
 const RANK: Record<Coverage, number> = { full: 2, partial: 1, manual: 0 };
@@ -85,8 +91,17 @@ export function buildReport(
   meta: ExportMeta,
   source?: string,
   generatedAt = new Date().toISOString(),
+  bundle?: ExportBundle,
 ): ReportData {
   const summary = { full: 0, partial: 0, manual: 0, journeys: plans.length };
+  const usedBy = new Map<string, string[]>();
+  for (const [name, j] of bundle?.journeys ?? []) {
+    for (const n of j.nodes.values()) {
+      const t = n.type === 'InnerTreeEvaluatorNode' && typeof n.config.tree === 'string' ? n.config.tree : undefined;
+      const list = t ? (usedBy.get(t) ?? []) : [];
+      if (t && !list.includes(name)) usedBy.set(t, [...list, name]);
+    }
+  }
   for (const p of plans) summary[p.coverage]++;
   return {
     tool: 'bkj2c',
@@ -95,6 +110,7 @@ export function buildReport(
     source,
     export: meta,
     summary,
+    ...(bundle ? { load: { ...bundle.stats, warnings: bundle.warnings.map((w) => w.message) } } : {}),
     journeys: plans.map((p) => ({
       journey: p.journey,
       target: p.target,
@@ -124,8 +140,16 @@ export function buildReport(
       unreachable: p.unreachable,
       unknownTypes: p.unknownTypes,
       files: (({ dir: _d, ...f }) => f)(journeyFiles(p.journey)),
+      ...(bundle?.journeys.get(p.journey)?.innerTreeOnly ? { innerTreeOnly: true } : {}),
+      ...(usedBy.get(p.journey)?.length ? { usedBy: usedBy.get(p.journey) } : {}),
     })),
   };
+}
+
+/** " (sub-journey of A, B)" for inner journeys. */
+export function subLabel(j: JourneyReport): string {
+  if (j.usedBy?.length) return ` (sub-journey of ${j.usedBy.join(', ')})`;
+  return j.innerTreeOnly ? ' (sub-journey)' : '';
 }
 
 const COVERAGE_LABEL: Record<Coverage, string> = { full: 'Full', partial: 'Partial', manual: 'Manual' };
@@ -141,8 +165,17 @@ export function renderReportMd(r: ReportData): string {
   out.push('');
   out.push('| Journey | Steps | Coverage | Main note |');
   out.push('| --- | --- | --- | --- |');
-  for (const j of r.journeys)
-    out.push(`| ${mdCell(j.journey)} | ${j.stepsText} | ${COVERAGE_LABEL[j.coverage]} | ${mdCell(j.note)} |`);
+  for (const j of r.journeys) {
+    out.push(
+      `| ${mdCell(j.journey + subLabel(j))} | ${j.stepsText} | ${COVERAGE_LABEL[j.coverage]} | ${mdCell(j.note)} |`,
+    );
+  }
+  if (r.load?.skipped.length) {
+    out.push('');
+    out.push(`## Not loaded (${r.load.skipped.length} of ${r.load.found})`);
+    out.push('');
+    for (const x of r.load.skipped) out.push(`- ${mdCell(x.name)}: ${mdCell(x.reason)}`);
+  }
   const withWarnings = r.journeys.filter((j) => j.warnings.length || j.coverageNotes.length);
   if (withWarnings.length) {
     out.push('');
@@ -174,6 +207,10 @@ export function renderReportHtml(r: ReportData, opts: { viewers?: boolean } = {}
     esc,
     href,
     label: COVERAGE_LABEL,
+    sub: (j: JourneyReport) =>
+      subLabel(j)
+        .trim()
+        .replace(/^\(|\)$/g, ''),
     viewers: opts.viewers ?? false,
     // Inline-code backticks in notes become <code>.
     note: (s: string) => esc(s).replace(/`([^`]+)`/g, '<code>$1</code>'),

@@ -24,6 +24,16 @@ export interface Script {
   evaluatorVersion?: string;
   /** Plain source after decoding. */
   source: string;
+  /** Library script (context LIBRARY), loaded by other scripts with require('name'). */
+  library?: boolean;
+}
+
+export interface LoadStats {
+  /** Entries found in the export (trees map/array, or 1). */
+  found: number;
+  loaded: number;
+  /** Entries that could not be loaded at all, with the reason. */
+  skipped: Array<{ name: string; reason: string }>;
 }
 
 export interface ExportBundle {
@@ -31,6 +41,7 @@ export interface ExportBundle {
   journeys: Map<string, Journey>;
   scripts: Map<string, Script>;
   warnings: Warning[];
+  stats: LoadStats;
 }
 
 export interface Journey {
@@ -239,6 +250,8 @@ export interface ViewerCanvas {
   nodes: ViewerNode[];
   edges: ViewerEdge[];
   staticNodes: Record<string, { x: number; y: number }>;
+  /** A sub-journey the journey can run, but not on the planned path. */
+  offPath?: boolean;
 }
 
 export interface ViewerStep {

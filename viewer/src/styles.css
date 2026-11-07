@@ -606,3 +606,10 @@ button {
   border-top: 1px solid var(--line);
   background: var(--surface);
 }
+.journeys button.off {
+  border-style: dashed;
+  color: var(--muted);
+}
+.journeys button.off.on {
+  color: var(--accent);
+}

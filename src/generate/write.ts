@@ -61,10 +61,10 @@ export function writeJourneyFiles(plans: Plan[], planner: Planner, opts: WriteOp
 export function writeReport(
   plans: Plan[],
   meta: ExportMeta,
-  opts: { out: string; source?: string },
+  opts: { out: string; source?: string; bundle?: ExportBundle },
 ): { report: ReportData; written: string[] } {
   mkdirSync(opts.out, { recursive: true });
-  const report = buildReport(plans, meta, opts.source);
+  const report = buildReport(plans, meta, opts.source, undefined, opts.bundle);
   const viewers = plans.length > 0 && plans.every((p) => existsSync(join(opts.out, journeyFiles(p.journey).viewer)));
   const files: Array<[string, string]> = [
     ['report.json', `${JSON.stringify(report, null, 2)}\n`],

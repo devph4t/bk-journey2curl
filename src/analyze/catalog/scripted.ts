@@ -1,7 +1,20 @@
-import type { CallbackSpec } from '../../model/types.js';
+import type { CallbackSpec, Script } from '../../model/types.js';
 import { makeCallback } from './callbacks.js';
 import { type ScannedCallback, scanScript } from './script-scan.js';
 import { type Handler, type InputLink, info, str } from './types.js';
+
+/** A script by id, or by name (scripts are referenced by id in nodes and by name in require()). */
+export function findScript(scripts: Map<string, Script>, ref: string): Script | undefined {
+  const byId = scripts.get(ref);
+  if (byId) return byId;
+  const lower = ref.toLowerCase();
+  const all = [...scripts.values()];
+  return (
+    all.find((x) => x.name === ref && x.library) ??
+    all.find((x) => x.name === ref) ??
+    all.find((x) => x.name.toLowerCase() === lower)
+  );
+}
 
 const LEADING_VERBS = /^(choose|enter|collect|set|show|select|get|ask|pick|provide|input)\s+/i;
 
@@ -38,7 +51,7 @@ function toSpec(sc: ScannedCallback, nodeId: string, variable: string | undefine
 
 export const scriptedDecision: Handler = (node, ctx) => {
   const scriptId = str(node.config.script);
-  const script = scriptId ? ctx.scripts.get(scriptId) : undefined;
+  const script = scriptId ? findScript(ctx.scripts, scriptId) : undefined;
   const outcomes = node.outcomeOrder;
   if (!script) {
     return info({
@@ -55,7 +68,7 @@ export const scriptedDecision: Handler = (node, ctx) => {
     });
   }
 
-  const scan = scanScript(script.source);
+  const scan = scanScript(script.source, { library: (name) => findScript(ctx.scripts, name)?.source });
   const inputCbs = scan.callbacks.filter(
     (c) => !['TextOutputCallback', 'HiddenValueCallback', 'MetadataCallback'].includes(c.type),
   );
@@ -87,6 +100,23 @@ export const scriptedDecision: Handler = (node, ctx) => {
         : 'submit';
 
   const warnings = [];
+  const w = (code: string, message: string, level: 'info' | 'warn' = 'warn') =>
+    warnings.push({ level, code, nodeId: node.id, message: `${node.name}: ${message}` });
+  if (scan.missingLibraries.length) {
+    w(
+      'missing-library',
+      `library script(s) not in the export: ${scan.missingLibraries.join(', ')}; callbacks they build are unknown`,
+    );
+  }
+  if (scan.missingFunctions.length) {
+    w('missing-library-function', `function(s) not found in the library: ${scan.missingFunctions.join(', ')}`);
+  }
+  if (scan.builtInLoop) w('script-loop', 'callbacks are built in a loop; their number depends on run-time data');
+  if (scan.builtConditionally) {
+    w('script-conditional', 'some callbacks are built only under a condition; the run-time type check decides', 'info');
+  }
+  if (scan.unordered) w('script-unordered', 'callbacks are built in functions with no direct call; order is a guess');
+  if (scan.libraries.length) w('script-libraries', `uses library script(s): ${scan.libraries.join(', ')}`, 'info');
   const unknownOutcomes = scan.outcomes.filter((o) => !(o in node.outcomes));
   if (unknownOutcomes.length) {
     warnings.push({

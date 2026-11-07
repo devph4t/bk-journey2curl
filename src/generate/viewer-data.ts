@@ -113,7 +113,14 @@ export function buildViewerData(
   const set = curlSet(plan, opts);
   const names = [plan.journey];
   for (const t of plan.trail) if (!names.includes(t.journey)) names.push(t.journey);
-  const canvases = names.flatMap((n) => canvasFor(bundle, plan, n) ?? []);
+  const onPath = new Set(names);
+  // Every other sub-journey it can run (any depth), so branches off the planned path can be opened too.
+  for (const d of descendants(bundle, plan.journey)) if (!names.includes(d)) names.push(d);
+  const canvases = names.flatMap((n) => {
+    const c = canvasFor(bundle, plan, n);
+    if (!c) return [];
+    return onPath.has(n) ? [c] : [{ ...c, offPath: true }];
+  });
 
   const steps: ViewerStep[] = plan.steps.map((s, i) => {
     const step: ViewerStep = {

@@ -134,6 +134,14 @@ export JSON (+ bk.config.json)
 - `viewer/` (Preact + Vite + vite-plugin-singlefile) draws the P1AIC canvas from the export x/y. It shows a curl box with a Copy button under each step node, a side panel with blocks, body and expected next, inner journeys as tabs, Simple/Engineer modes, and `#step-N` deep links. `src/generate/viewer-data.ts` builds the data and `injectViewerData` replaces the whole `bkj2c-data` script tag.
 - Check the viewer visually with headless Edge: `msedge --headless=new --screenshot=<png> --window-size=1600,1000 --virtual-time-budget=4000 "file:///.../out/<J>/<J>.html#step-2"`.
 
+### Complex exports (plan 007)
+
+- The user tests with a larger private export (many nested sub-trees, many library scripts) that must not be shared. Diagnose with `bkj2c inspect --redact` output only; never ask for the file.
+- Loader (`src/load/loader.ts`) parses field by field: odd fields become warnings, the journey is kept. Only an entry with no tree is skipped (`bundle.stats`). Journeys are named by `tree._id`. Inner-tree references resolve case-insensitively.
+- Every journey is processed by default, including `innerTreeOnly`. `--exclude-inner` hides them. The report marks "sub-journey of X" and lists skipped entries.
+- Script scanner (`script-scan.ts`) walks code in execution order. It finds builder calls on any receiver (own-property check on `BUILDER_TYPES`, so not `toString`), inlines named local functions, walks anonymous callbacks where they appear, and follows `require('Lib')` and `const { fn } = require('Lib')` into library scripts (`findScript` by id or name), passing argument values through. It flags `builtInLoop`, `builtConditionally`, `missingLibraries`, `missingFunctions` and `unordered`.
+- `test/complex.test.ts` holds a synthetic complex export covering all of the above.
+
 ### Layout
 
 ```text
@@ -149,6 +157,7 @@ src/analyze/catalog/            index.ts (registry, Page Node), platform.ts, flo
 src/analyze/                    planner.ts (path + variant/optional analysis), solvers.ts, inputs.ts (IN_* names),
                                 plain-text.ts, coverage.ts
 src/format/plan-text.ts         text for the plan command
+src/format/inspect.ts           inspect command (structure only, --redact)
 src/generate/                   sh.ts, curl.ts (copyable blocks), runbook.ts, report.ts, viewer-data.ts, viewer.ts,
                                 paths.ts (safe file names), write.ts (file writing)
 src/templates/                  script.sh.eta, report.html.eta, index.ts (eta loader)

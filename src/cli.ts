@@ -4,6 +4,7 @@ import { Command, Option } from 'commander';
 import { Planner, type PlanOptions } from './analyze/planner.js';
 import { type BkConfig, loadConfig } from './config.js';
 import { envSettings, loadDotEnv } from './env.js';
+import { inspectExport } from './format/inspect.js';
 import { formatPlan } from './format/plan-text.js';
 import { coverageBelow } from './generate/report.js';
 import { writeJourneyFiles, writeReport } from './generate/write.js';
@@ -16,7 +17,8 @@ interface CommonOpts {
   target?: 'success' | 'failure';
   config?: string;
   debug?: boolean;
-  includeInner?: boolean;
+  excludeInner?: boolean;
+  quiet?: boolean;
 }
 
 interface OutOpts extends CommonOpts {
@@ -38,7 +40,8 @@ function withCommon(cmd: Command): Command {
       new Option('--target <target>', 'plan to Success or Failure').choices(['success', 'failure']).default('success'),
     )
     .option('-c, --config <file>', 'bk.config.json (default: ./bk.config.json if present)')
-    .option('--include-inner', 'also process journeys marked inner-tree-only')
+    .option('--exclude-inner', 'skip journeys marked "inner tree only" (default: every journey is included)')
+    .option('-q, --quiet', 'do not print loader warnings')
     .option('--debug', 'dump intermediate objects as JSON to stderr');
 }
 
@@ -80,6 +83,20 @@ function resolve<T extends CommonOpts & Partial<OutOpts>>(file: string | undefin
   ];
 }
 
+/** Say how many journeys were found and loaded, and why anything was skipped (stderr). */
+function printLoadSummary(file: string, bundle: ExportBundle, quiet?: boolean): void {
+  const { found, loaded, skipped } = bundle.stats;
+  const inner = [...bundle.journeys.values()].filter((j) => j.innerTreeOnly).length;
+  const libs = [...bundle.scripts.values()].filter((s) => s.library).length;
+  process.stderr.write(
+    `${basename(file)}: ${loaded} of ${found} journeys loaded (${inner} inner-tree-only), ` +
+      `${bundle.scripts.size} scripts (${libs} libraries)\n`,
+  );
+  for (const s of skipped) process.stderr.write(`skipped: ${s.name}: ${s.reason}\n`);
+  if (quiet) return;
+  for (const w of bundle.warnings) process.stderr.write(`${w.level}: ${w.message}\n`);
+}
+
 interface Loaded {
   bundle: ExportBundle;
   config: BkConfig;
@@ -89,7 +106,7 @@ interface Loaded {
 function load(file: string, opts: CommonOpts): Loaded {
   const config = loadConfig(opts.config);
   const bundle = loadExportFile(file);
-  for (const w of bundle.warnings) process.stderr.write(`warning: ${w.message}\n`);
+  printLoadSummary(file, bundle, opts.quiet);
   const session = (opts as { withSession?: string }).withSession;
   if (session && !bundle.journeys.has(session)) {
     throw new Error(`--with-session: journey "${session}" is not in the export`);
@@ -100,7 +117,7 @@ function load(file: string, opts: CommonOpts): Loaded {
       throw new Error(`Journey "${n}" is not in the export (have: ${[...bundle.journeys.keys()].join(', ')})`);
     }
   }
-  if (!opts.journey?.length && !opts.includeInner) {
+  if (!opts.journey?.length && opts.excludeInner) {
     const innerOnly = new Set([...bundle.journeys.values()].filter((j) => j.innerTreeOnly).map((j) => j.id));
     names = names.filter((n) => !innerOnly.has(n));
   }
@@ -145,7 +162,7 @@ function genFiles(file: string, opts: OutOpts & { out: string }) {
 }
 
 function reportFiles(file: string, opts: OutOpts & { out: string }, plans: Plan[], bundle: ExportBundle) {
-  const { report, written } = writeReport(plans, bundle.meta, { out: opts.out, source: basename(file) });
+  const { report, written } = writeReport(plans, bundle.meta, { out: opts.out, source: basename(file), bundle });
   for (const p of written) process.stdout.write(`wrote ${p}\n`);
   const s = report.summary;
   process.stdout.write(`${s.journeys} journeys: ${s.full} full, ${s.partial} partial, ${s.manual} manual\n`);
@@ -175,6 +192,18 @@ export function main(argv = process.argv): void {
       process.stdout.write(`${plans.map(formatPlan).join('\n\n')}\n`);
     },
   );
+
+  program
+    .command('inspect')
+    .description('summarise the export structure (journeys, sub-journeys, libraries, skipped, unknown types)')
+    .argument('[export]', 'journey export file; default: BKJ2C_EXPORT')
+    .option('--redact', 'replace journey and library names with J1, L1 ... so the output can be shared')
+    .option('-c, --config <file>', 'bk.config.json (default: ./bk.config.json if present)')
+    .action((arg: string | undefined, raw: { redact?: boolean; config?: string }) => {
+      const [file] = resolve(arg, {});
+      const bundle = loadExportFile(file);
+      process.stdout.write(`${inspectExport(bundle, { redact: raw.redact, config: loadConfig(raw.config) })}\n`);
+    });
 
   withCommon(program.command('paths').description('list every simple path to the target (pick one with --choose)'))
     .option('--limit <n>', 'maximum paths per journey', '50')
