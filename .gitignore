@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build output
+dist/
+viewer/dist/
+*.tsbuildinfo
+
+# Generated journey output
+out/
+
+# Test / coverage
+coverage/
+.vitest/
+*.snap.tmp
+
+# Generated script runtime files
+cookies.txt
+*.cookies
+*.cookiejar
+
+# Env and secrets (keep bk.config.example.json)
+.env
+.env.*
+!.env.example
+bk.config.json
+*.local.json
+
+# Real tenant exports (put sanitized fixtures in test/fixtures/)
+/exports/
+/*Export*.json
+
+# Agent session marker (plans and logs are kept)
+_agent/logs/.current_session
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Editor / OS
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
